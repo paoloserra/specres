@@ -243,7 +243,7 @@ while ii < nr_spec:
     skipped += 1
 spec_autocorr_mean = np.nanmean(spec_autocorr_all, axis=0)
 spec_autocorr_std  = np.nanstd(spec_autocorr_all, axis=0)
-max_nonzero_autocorr = np.max(np.abs(np.where(spec_autocorr_mean > spec_autocorr_std)[0] - nr_chan//2))
+max_nonzero_autocorr = max(3,np.max(np.abs(np.where(spec_autocorr_mean > spec_autocorr_std)[0] - nr_chan//2)))
 
 # Compare mean autocorrelation to autocorrelation of requested kernels
 kernels, kern_autocorr, knames, deltas = {}, {}, [], []
