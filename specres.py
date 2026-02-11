@@ -327,14 +327,14 @@ for kk in knames:
   colind += 1
 ax1.legend(fontsize=13)
 ax1.set_xlim(0, 5*max_nonzero_autocorr)
-ax1.set_ylabel('$A_F$')
+ax1.set_ylabel('$A$')
 
 ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=8, alpha=0.3, label='$+\\sqrt{\\mathcal{F}A_F}$')
 ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft_sign)), 'k-', ds='steps-mid', lw=3, alpha=1, label='$\\Lambda(\\sqrt{\\mathcal{F}A_F})$')
 ax2.axhline(y=0, color='k', ls=':')
 ax2.legend(fontsize=13)
 ax2.set_xlim(0,nr_chan//2)
-ax2.set_ylabel('$\\sqrt{\\mathcal{F}A_F}$')
+ax2.set_ylabel('$\\sqrt{\\mathcal{F}A}$')
 
 ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label='$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\mathcal{F}A_F})$')
 ax3.axhline(y=0, color='k', ls=':')
