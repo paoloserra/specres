@@ -3,7 +3,7 @@ Python script to estimate the spectral resolution of a data cube from its noise 
 
 It assumes that the data cube is obtained by convolving a data cube with uncorrelated channels with a spectral convolution kernel `K`.
 
-Spectra with signal should be excluded from the analysis by giving a detection mask cube in input (see below).
+Spectra that contain real signal should be excluded from the analysis by giving a detection mask cube in input (see below).
 
 The script does the following:
 - extracts a set of unique random spectra from the datacube and calculates the autocorrelation of each spectrum;
