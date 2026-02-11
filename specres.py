@@ -250,7 +250,7 @@ kernels, kern_autocorr, knames, deltas = {}, {}, [], []
 delta_tol = 3.
 if sinc or gauss or hann or box:
   print('# Comparing mean autocorrelation with autocorrelation of known convolution kernels.')
-  print('#   Delta(autocorrelation) calculated with the first {0:d} elements after the peak'.format(2*max_nonzero_autocorr))
+  print('#   Delta(autocorrelation) calculated with the first {0:d} elements of A after the peak'.format(2*max_nonzero_autocorr))
   if sinc:
     for ss in sinc:
       kernels['sinc-{0:.2f}'.format(ss)] = sinc_kern(spec_z, ss)
@@ -323,24 +323,24 @@ ax1.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=
 ax1.axhline(y=0, color='k', ls=':')
 colind = 0
 for kk in knames:
-  ax1.plot(spec_z, kern_autocorr[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label=kk)
+  ax1.plot(spec_z, kern_autocorr[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$A_K$({0:s})'.format(kk))
   colind += 1
 ax1.legend(fontsize=13)
 ax1.set_xlim(0, 5*max_nonzero_autocorr)
 ax1.set_ylabel('$A$')
 
-ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=8, alpha=0.3, label='$+\\sqrt{\\mathcal{F}A_F}$')
-ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft_sign)), 'k-', ds='steps-mid', lw=3, alpha=1, label='$\\Lambda(\\sqrt{\\mathcal{F}A_F})$')
+ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=8, alpha=0.3, label='$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$')
+ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft_sign)), 'k-', ds='steps-mid', lw=3, alpha=1, label='$\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$')
 ax2.axhline(y=0, color='k', ls=':')
 ax2.legend(fontsize=13)
 ax2.set_xlim(0,nr_chan//2)
 ax2.set_ylabel('$\\sqrt{\\mathcal{F}A}$')
 
-ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label='$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\mathcal{F}A_F})$')
+ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label='$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\mathcal{F}\\langle A_F\\rangle })$')
 ax3.axhline(y=0, color='k', ls=':')
 colind = 0
 for kk in knames:
-  ax3.plot(spec_z, kernels[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label=kk)
+  ax3.plot(spec_z, kernels[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$K$({0:s})'.format(kk))
   colind += 1
 ax3.legend(fontsize=13)
 ax3.set_xlim(0, 5*max_nonzero_autocorr)
