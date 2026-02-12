@@ -336,7 +336,7 @@ ax2.legend(fontsize=13)
 ax2.set_xlim(0,nr_chan//2)
 ax2.set_ylabel('$\\sqrt{\\mathcal{F}A}$')
 
-ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label='$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\mathcal{F}\\langle A_F\\rangle })$')
+ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label='$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$')
 ax3.axhline(y=0, color='k', ls=':')
 colind = 0
 for kk in knames:
