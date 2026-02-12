@@ -135,7 +135,9 @@ def track_ft_sign_smooth(x, window=15, local_min_frac=0.7, local_d1_frac=0.5, pe
   # 3) the point is close to zero (< peak/peak_frac)
   # 4) if the sign of this point is changed, most neighbours within a symmetric window have negative fist derivative on both sides (fraction neighbours > local_d1_frac)
   # 5) if the sign of this point is changed, condition 1 is no longer satisfied
+  # To avoid frequent sign changes caused by noise, group sign-changing points based on min_gap and select only the median point of each group
   # Stop when the number of sign changes reaches max_sign_change
+  # For the final selection of points, smooth across the sign-changing region with interp_excl, interp_incl and interp_order
     
   x = np.fft.fftshift(x)
   dx = x[1:] - x[:-1]
@@ -145,21 +147,26 @@ def track_ft_sign_smooth(x, window=15, local_min_frac=0.7, local_d1_frac=0.5, pe
   pos_sign_change = []
   # start loop, moving from the centre towards high channels
   for jj in np.arange(x.shape[0]//2, x.shape[0]-max(window, interp_excl+interp_incl)):
-    if (x[jj-window:jj+window+1] > x[jj]).sum() >= local_min_frac * (2 * window + 1):                   # condition 1
+    # condition 1
+    if (x[jj-window:jj+window+1] > x[jj]).sum() >= local_min_frac * (2 * window + 1):
       if verbose:
         print('###      .',jj)
-      if (dx[jj-window:jj] < 0).sum() >= local_d1_frac * window and (dx[jj+1:jj+1+window] > 0).sum() >= local_d1_frac * window:   # condition 2
+      # condition 2
+      if (dx[jj-window:jj] < 0).sum() >= local_d1_frac * window and (dx[jj+1:jj+1+window] > 0).sum() >= local_d1_frac * window:
         if verbose:
           print('###      ..')
-        if np.abs(x[jj]) < np.nanmax(np.abs(x))/peak_frac:                                            # condition 3
+        # condition 3
+        if np.abs(x[jj]) < np.nanmax(np.abs(x))/peak_frac:                                
           if verbose:
             print('###      ...')
-          xtemp = change_sign(x, jj, 0, 0, 0) # no sign-change interpolation when for the purpose of continuing the checks
+          xtemp = change_sign(x, jj, 0, 0, 0) # no sign-change interpolation when going through the 5 conditions
           dxtemp = xtemp[1:] - xtemp[:-1]
-          if (dxtemp[jj-window:jj] < 0).sum() >= local_d1_frac * window and (dxtemp[jj+1:jj+1+window] < 0).sum() >= local_d1_frac * window:   # condition 4
+          # condition 4
+          if (dxtemp[jj-window:jj] < 0).sum() >= local_d1_frac * window and (dxtemp[jj+1:jj+1+window] < 0).sum() >= local_d1_frac * window:
             if verbose:
               print('###      ....')
-            if (xtemp[jj-window:jj+window+1] > xtemp[jj]).sum() < local_min_frac * (2 * window + 1):   # condition 5
+            # condition 5
+            if (xtemp[jj-window:jj+window+1] > xtemp[jj]).sum() < local_min_frac * (2 * window + 1):
               if verbose:
                 print('###      .....')
               pos_sign_change.append(jj)
