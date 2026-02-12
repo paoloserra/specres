@@ -19,9 +19,12 @@ def create_parser():
   p.add_argument("-hk", "--hanning-kernel", type=int, nargs='+', required = False,
                  help="Space separated list of widths for comparison Hanning kernels"
                  " (only odd numbers will be considered).")
-  p.add_argument("-bk", "--box-kernel", type=int, nargs='+', required = False,
+  p.add_argument("-bk", "--boxcar-kernel", type=int, nargs='+', required = False,
                  help="Space separated list of widths for comparison Box kernels"
                  " (only odd numbers will be considered).")
+  p.add_argument("-nk", "--binomial-kernel", type=int, nargs='+', required = False,
+                 help="Space separated list of widths for comparison Binomial kernels"
+                 " (only odd numbers > 1 will be considered).")
   return(p)
 
 # make a spectrum symmetric about mid point
@@ -55,6 +58,20 @@ def box_kern(z,width):
     kern[nch-ww] = 1.00
     kern[nch+ww] = 1.00
   return(kern / np.nanmax(kern))
+
+# binomial
+def binomial_kern(z,width):
+  bin2 = np.pad(np.ones(2), 2*width)
+  kern = bin2.copy()
+  ll = 2
+  while ll < width:
+    kern = convolve_fft(kern, bin2)
+    kern[kern < 1e-6] = 0
+    ll += 1
+  kern = kern[kern > 0]
+  kern = np.pad(kern, max(0,(z.shape[0]-kern.shape[0])//2))
+  return(kern / np.nanmax(kern))
+
 
 # DFT-based autocorrelation
 def autocorrelate_fft(signal):
@@ -185,7 +202,8 @@ nr_spec = args.nr_spec
 sinc    = args.sinc_kernel
 gauss   = args.gauss_kernel
 hann    = args.hanning_kernel
-box     = args.box_kernel
+box     = args.boxcar_kernel
+binom   = args.binomial_kernel
 
 # Load the input FITS cube and, if requested, the FITS detection mask
 print('# Loading FITS cube {0:s}'.format(cubef))
@@ -248,7 +266,7 @@ max_nonzero_autocorr = max(3,np.max(np.abs(np.where(spec_autocorr_mean > spec_au
 # Compare mean autocorrelation to autocorrelation of requested kernels
 kernels, kern_autocorr, knames, deltas = {}, {}, [], []
 delta_tol = 3.
-if sinc or gauss or hann or box:
+if sinc or gauss or hann or box or binom:
   print('# Comparing mean autocorrelation with autocorrelation of known convolution kernels.')
   print('#   Delta(autocorrelation) calculated with the first {0:d} elements of A after the peak'.format(2*max_nonzero_autocorr))
   if sinc:
@@ -256,15 +274,19 @@ if sinc or gauss or hann or box:
       kernels['sinc-{0:.2f}'.format(ss)] = sinc_kern(spec_z, ss)
   if gauss:
     for gg in gauss:
-      kernels['gauss-{0:.2f}'.format(gg)] = gauss_kern(spec_z, gg)
+      kernels['gaussian-{0:.2f}'.format(gg)] = gauss_kern(spec_z, gg)
   if hann:
     for hh in hann:
       if hh // 2 * 2 != hh:
-        kernels['hann-{0:d}'.format(hh)] = hann_kern(spec_z, hh)
+        kernels['hanning-{0:d}'.format(hh)] = hann_kern(spec_z, hh)
   if box:
     for bb in box:
       if bb // 2 * 2 != bb:
-        kernels['box-{0:d}'.format(bb)] = box_kern(spec_z, bb)
+        kernels['boxcar-{0:d}'.format(bb)] = box_kern(spec_z, bb)
+  if binom:
+    for nn in binom:
+      if nn > 1 and nn // 2 * 2 != nn:
+        kernels['binomial-{0:d}'.format(nn)] = binomial_kern(spec_z, nn)
   for kk in kernels:
     kern_autocorr[kk] = autocorrelate_fft(kernels[kk])
     knames.append(kk)
