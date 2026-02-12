@@ -13,7 +13,7 @@ The script does the following:
 
 ```
 usage: specres.py [-h] -c CUBE [-m MASK] [-ns NR_SPEC] [-nc NR_CHAN] [-sk SINC_KERNEL [SINC_KERNEL ...]] [-gk GAUSS_KERNEL [GAUSS_KERNEL ...]] [-hk HANNING_KERNEL [HANNING_KERNEL ...]]
-                  [-bk BOX_KERNEL [BOX_KERNEL ...]]
+                  [-bk BOXCAR_KERNEL [BOXCAR_KERNEL ...]] [-nk BINOMIAL_KERNEL [BINOMIAL_KERNEL ...]]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -29,6 +29,8 @@ optional arguments:
                         Space separated list of widths for comparison Gaussian kernels.
   -hk HANNING_KERNEL [HANNING_KERNEL ...], --hanning-kernel HANNING_KERNEL [HANNING_KERNEL ...]
                         Space separated list of widths for comparison Hanning kernels (only odd numbers will be considered).
-  -bk BOX_KERNEL [BOX_KERNEL ...], --box-kernel BOX_KERNEL [BOX_KERNEL ...]
+  -bk BOXCAR_KERNEL [BOXCAR_KERNEL ...], --boxcar-kernel BOXCAR_KERNEL [BOXCAR_KERNEL ...]
                         Space separated list of widths for comparison Box kernels (only odd numbers will be considered).
+  -nk BINOMIAL_KERNEL [BINOMIAL_KERNEL ...], --binomial-kernel BINOMIAL_KERNEL [BINOMIAL_KERNEL ...]
+                        Space separated list of widths for comparison Binomial kernels (only odd numbers > 1 will be considered).
 ```
