@@ -1,7 +1,7 @@
 # specres
 Python script to estimate the spectral resolution of a data cube from its noise properties.
 
-It assumes that the data cube is obtained by convolving a data cube with uncorrelated channels with a spectral convolution kernel `K`.
+It assumes that the data cube is obtained by convolving an initial data cube whose channels are uncorrelated with a spectral convolution kernel `K`.
 
 Spectra that contain real signal should be excluded from the analysis by giving a detection mask cube in input (see below).
 
