@@ -7,24 +7,73 @@ def create_parser():
                  help="Input FITS cube.")
   p.add_argument("-m", "--mask", type=str, help="Optional FITS detection mask."
                  " Spectra including detected voxels are excluded from the analysis.")
-  p.add_argument("-ns", "--nr-spec", type=int, default=1000,
-                 help="Number of unique random spectra to be extracted from the input FITS cube."
-                 " Default is 1000.")
-  p.add_argument("-nc", "--nr-chan", type=int, default=0,
-                 help="Number of channels per spectrum. Default is 0 = all channels.")
-  p.add_argument("-sk", "--sinc-kernel", type=float, nargs='+', required = False,
-                 help="Space separated list of scales for comparison Sinc kernels.")
-  p.add_argument("-gk", "--gauss-kernel", type=float, nargs='+', required = False,
-                 help="Space separated list of widths for comparison Gaussian kernels.")
-  p.add_argument("-hk", "--hanning-kernel", type=int, nargs='+', required = False,
-                 help="Space separated list of widths for comparison Hanning kernels"
-                 " (only odd numbers will be considered).")
-  p.add_argument("-bk", "--boxcar-kernel", type=int, nargs='+', required = False,
-                 help="Space separated list of widths for comparison Box kernels"
-                 " (only odd numbers will be considered).")
-  p.add_argument("-nk", "--binomial-kernel", type=int, nargs='+', required = False,
-                 help="Space separated list of widths for comparison Binomial kernels"
-                 " (only odd numbers > 1 will be considered).")
+  p.add_argument("-nspec", "--nr-spec", type=int, default=1000,
+                 help="Number of unique random spectra to be extracted from the input FITS"
+                 " cube. Default = 1000.")
+  p.add_argument("-nchan", "--nr-chan", type=int, default=0,
+                 help="Number of channels per spectrum. Default = 0 = all channels.")
+  p.add_argument("-sinc", "--sinc-kernel", type=float, nargs='+', required = False,
+                 help="Space-separated list of scales for comparison Sinc kernels.")
+  p.add_argument("-gauss", "--gauss-kernel", type=float, nargs='+', required = False,
+                 help="Space-separated list of widths for comparison Gaussian kernels.")
+  p.add_argument("-hann", "--hanning-kernel", type=int, nargs='+', required = False,
+                 help="Space-separated list of widths for comparison Hanning kernels."
+                 " Only odd numbers will be considered.")
+  p.add_argument("-box", "--boxcar-kernel", type=int, nargs='+', required = False,
+                 help="Space-separated list of widths for comparison Box kernels."
+                 " Only odd numbers will be considered.")
+  p.add_argument("-bin", "--binomial-kernel", type=int, nargs='+', required = False,
+                 help="Space-separated list of widths for comparison Binomial kernels."
+                 " Only odd numbers > 1 will be considered.")
+  # --------------------------------- ADVANCED OPTIONS --------------------------------- #
+  p.add_argument("-notrack", "--no-track-sign-change", action="store_true",
+                 help="*** ADVANCED OPTION ***"
+                 " Skip the sign tracking of +/- sqrt[FT(<A_F>)] and always take the"
+                 " + sign.")
+  p.add_argument("-trackpar", "--track-sign-change-params", type=float, nargs=5,
+                 default=[15, 0.7, 0.5, 0.1, 5], help="*** ADVANCED OPTION ***"
+                 " Space-separated parameters of the algorithm that tracks the sign of"
+                 "  +/- sqrt[FT(<A_F>)]. The algorithm looks for local minima sufficiently"
+                 " close to zero. The five parameters are:"
+                 " 1) Half-width of the window used to check whether a point is a local"
+                 " minimum, to be rounded to the nearest integer. Default = 15."
+                 " 2) Minimum fraction of points with a larger value than the central point"
+                 " inside the above window. Must be between 0 and 1, with higher values"
+                 " giving fewer sign changes. Default = 0.7."
+                 " 3) Minumum fraction of points with a negative (positive) 1st derivative"
+                 " on the side closer to (farther from) the zero-frequency term. Must be"
+                 " between 0 and 1, with higher values giving fewer sign changes. Default"
+                 " = 0.5."
+                 " 4) Maximum ratio between the point and the peak. Must be between 0 and 1,"
+                 " with lower values giving fewer sign changes. Default = 0.1."
+                 " 5) Minimum distance from another local minimum candidate, to be rounded"
+                 " to the nearest integer. Points closer than this limit are grouped"
+                 " together in a friends-of-friends way, and only the median point of"
+                 " each group is retained). Default = 5.")
+  p.add_argument("-force", "--force-sign-change", type=int, nargs='+', required = False,
+                 help="*** ADVANCED OPTION *** Space-separated list of points where to"
+                 " force a sign change of sqrt[FT(<A_F>)]. Can only be used with -notrack,"
+                 " because the sign tracking algorithm would generally give a conflicting"
+                 " list of points.")
+  p.add_argument("-interp", "--interp-sign-change", type=int, nargs=3,
+                 default=[10, 2, 10], help="*** ADVANCED OPTION ***"
+                 " Space-separated parameters used for interpolating sqrt[FT(<A_F>)]"
+                 " across the sign-changing points, whether found by the sign tracking"
+                 " algorithm or given by the user. Interpolation avoids abrupt jumps"
+                 " across the zero line in case of significan noise floor. The three"
+                 " parameters are:"
+                 " 1) Number of points to be included in the interpolation on either side"
+                 " of the point. Default = 10. Set to 0 for no interpolation."
+                 " 2) Order of the fit. Default = 2."
+                 " 3) Number of points to be excluded from the interpolation on either"
+                 " side of the point. If > 0, the above number of points included in the"
+                 " interpolation does not change, and the points included move outward."
+                 " Default = 10.")
+  p.add_argument("-floor", "--noise-floor", type=int, default=-1,
+                 help="*** ADVANCED OPTION ***"
+                 " Calculate the noise floor of FT(<A_F>) as the selected percentile"
+                 " (0 to 100), and subtract it before reconstructing the kernel K."
+                 " Default = -1 = no noise floor removal.")
   return(p)
 
 # make a spectrum symmetric about mid point
@@ -100,13 +149,13 @@ def convolve_fft(signal, kern):
   convolved_signal = convolved_signal[(kern.shape[0]-1) // 2 : (kern.shape[0]-1) // 2 + signal.shape[0]]
   return(convolved_signal)
 
-# sign changing function with optional interpolation to smooth over jumps
-def change_sign(uval, upos, interp_excl, interp_incl, interp_order):
+# function to change the sign at the position of the selected local minima, with optional interpolation to smooth over jumps
+def change_sign(uval, upos, interp_incl, interp_order, interp_excl):
   uval_new = uval.copy()
   uneg = uval_new.shape[0]-upos-1
   uval_new[upos:] *= -1
   uval_new[:uneg+1] *= -1
-  if interp_excl or interp_incl:
+  if interp_incl:
     ux0 = np.arange(upos-interp_excl,upos+interp_excl)
     ux1 = np.arange(upos-interp_excl-interp_incl,upos-interp_excl)
     ux2 = np.arange(upos+interp_excl,upos+interp_excl+interp_incl)
@@ -128,66 +177,83 @@ def change_sign(uval, upos, interp_excl, interp_incl, interp_order):
   return(uval_new)
 
 # sign tracking function
-def track_ft_sign_smooth(x, window=15, local_min_frac=0.7, local_d1_frac=0.5, peak_frac=10, min_gap=5, max_sign_change=1000, interp_excl=0, interp_incl=0, interp_order=2, verbose=0):
-  # Starting from the centre, find a point that meets these requirements
-  # 1) most neighbours within a symmetric window have a larger value (fraction neighbours > local_min_frac)
-  # 2) most neighbours within a symmetric window have negative fist derivative on one side, and positive on the other side (fraction neighbours > local_d1_frac)
-  # 3) the point is close to zero (< peak/peak_frac)
-  # 4) if the sign of this point is changed, most neighbours within a symmetric window have negative fist derivative on both sides (fraction neighbours > local_d1_frac)
-  # 5) if the sign of this point is changed, condition 1 is no longer satisfied
-  # To avoid frequent sign changes caused by noise, group sign-changing points based on min_gap and select only the median point of each group
-  # Stop when the number of sign changes reaches max_sign_change
-  # For the final selection of points, smooth across the sign-changing region with interp_excl, interp_incl and interp_order
-    
+def track_ft_sign_smooth(x, track_sign_par, inter_sign_change, pos_sign_change, max_sign_change=1000, verbose=0):
+  # Starting from the centre, find a point that meets these requirements:
+  # 1) most neighbours within a symmetric window have a larger value
+  #    (fraction neighbours > local_min_frac);
+  # 2) most neighbours within a symmetric window have negative fist derivative on one side,
+  #    and positive on the other side (fraction neighbours > local_d1_frac);
+  # 3) the point is close to zero (< peak_frac * peak);
+  # 4) if the sign of this point is changed, most neighbours within a symmetric window have
+  #    negative fist derivative on both sides (fraction neighbours > local_d1_frac);
+  # 5) if the sign of this point is changed, condition 1 is no longer satisfied.
+  # To avoid frequent sign changes caused by noise, group sign-changing points based on
+  #    min_gap and select only the median point of each group.
+  # Stop when the number of sign changes reaches max_sign_change.
+  # For the final selection of points, smooth across the sign-changing region with
+  #    interp_excl, interp_incl and interp_order.
+
+  [window, local_min_frac, local_d1_frac, peak_frac, min_gap] = track_sign_par
+  [interp_incl, interp_order, interp_excl] = inter_sign_change
+
   x = np.fft.fftshift(x)
   dx = x[1:] - x[:-1]
   dxmed = np.nanmedian(dx)
   dxstd = 1.4826 * np.nanmedian(np.abs(dx - dxmed))
   
-  pos_sign_change = []
-  # start loop, moving from the centre towards high channels
-  for jj in np.arange(x.shape[0]//2, x.shape[0]-max(window, interp_excl+interp_incl)):
-    # condition 1
-    if (x[jj-window:jj+window+1] > x[jj]).sum() >= local_min_frac * (2 * window + 1):
-      if verbose:
-        print('###      .',jj)
-      # condition 2
-      if (dx[jj-window:jj] < 0).sum() >= local_d1_frac * window and (dx[jj+1:jj+1+window] > 0).sum() >= local_d1_frac * window:
+  if not pos_sign_change:
+    pos_sign_change = []
+  else:
+    pos_sign_change = [sc + x.shape[0]//2 for sc in pos_sign_change]
+  if not len(pos_sign_change):
+    print('#   - track sign change of sqrt[FT(<A_F>)]')
+    # start loop, moving from the centre towards high channels
+    for jj in np.arange(x.shape[0]//2, x.shape[0]-max(window, interp_excl+interp_incl)):
+      # condition 1
+      if (x[jj-window:jj+window+1] > x[jj]).sum() >= local_min_frac * (2 * window + 1):
         if verbose:
-          print('###      ..')
-        # condition 3
-        if np.abs(x[jj]) < np.nanmax(np.abs(x))/peak_frac:                                
+          print('###      .',jj)
+        # condition 2
+        if (dx[jj-window:jj] < 0).sum() >= local_d1_frac * window and (dx[jj+1:jj+1+window] > 0).sum() >= local_d1_frac * window:
           if verbose:
-            print('###      ...')
-          xtemp = change_sign(x, jj, 0, 0, 0) # no sign-change interpolation when going through the 5 conditions
-          dxtemp = xtemp[1:] - xtemp[:-1]
-          # condition 4
-          if (dxtemp[jj-window:jj] < 0).sum() >= local_d1_frac * window and (dxtemp[jj+1:jj+1+window] < 0).sum() >= local_d1_frac * window:
+            print('###      ..')
+          # condition 3
+          if np.abs(x[jj]) < peak_frac * np.nanmax(np.abs(x)):
             if verbose:
-              print('###      ....')
-            # condition 5
-            if (xtemp[jj-window:jj+window+1] > xtemp[jj]).sum() < local_min_frac * (2 * window + 1):
+              print('###      ...')
+            xtemp = change_sign(x, jj, 0, 0, 0) # no sign-change interpolation when going through the 5 conditions
+            dxtemp = xtemp[1:] - xtemp[:-1]
+            # condition 4
+            if (dxtemp[jj-window:jj] < 0).sum() >= local_d1_frac * window and (dxtemp[jj+1:jj+1+window] < 0).sum() >= local_d1_frac * window:
               if verbose:
-                print('###      .....')
-              pos_sign_change.append(jj)
-            if len(pos_sign_change) == max_sign_change:
-              print('###      !!! maximum number of sign changes reached !!!')
-              break
-  if len(pos_sign_change):
-    jj=1
-    groups_sign_change = [[pos_sign_change[0],],]
-    while jj < len(pos_sign_change):
-      if pos_sign_change[jj] - pos_sign_change[jj-1] < min_gap:
-        groups_sign_change[-1].append(pos_sign_change[jj])
-      else:
-        groups_sign_change.append([pos_sign_change[jj],])
-      jj += 1
-    pos_sign_change = [int(np.around(np.median(np.array(jj)),0)) for jj in groups_sign_change]
+                print('###      ....')
+              # condition 5
+              if (xtemp[jj-window:jj+window+1] > xtemp[jj]).sum() < local_min_frac * (2 * window + 1):
+                if verbose:
+                  print('###      .....')
+                pos_sign_change.append(jj)
+              if len(pos_sign_change) == max_sign_change:
+                print('###      !!! maximum number of sign changes reached !!!')
+                break
+    if len(pos_sign_change):
+      jj=1
+      groups_sign_change = [[pos_sign_change[0],],]
+      while jj < len(pos_sign_change):
+        if pos_sign_change[jj] - pos_sign_change[jj-1] < min_gap:
+          groups_sign_change[-1].append(pos_sign_change[jj])
+        else:
+          groups_sign_change.append([pos_sign_change[jj],])
+        jj += 1
+      pos_sign_change = [int(np.around(np.median(np.array(jj)),0)) for jj in groups_sign_change]
   
   if len(pos_sign_change):
-    print('###      changing sign at',pos_sign_change)
+    print('#   - change sign of sqrt[FT(<A_F>)] at {0}'.format(np.array(pos_sign_change)-x.shape[0]//2))
+    if interp_incl:
+      print('#   - interpolate across sign changes')
+  else:
+    print('#   - no sign changes found')
   for jj in pos_sign_change:
-    x = change_sign(x, jj, interp_excl, interp_incl, interp_order)
+    x = change_sign(x, jj, interp_incl, interp_order, interp_excl)
 
   x = np.fft.ifftshift(x)
   return(x)
@@ -201,16 +267,43 @@ plt.rcParams['text.usetex'] = True
 plt.rcParams.update({'font.size': 22})
 
 # Read settings from command line
-args = create_parser().parse_args([a for a in sys.argv[1:]])
-cubef   = args.cube
-mskf    = args.mask
-nr_chan = args.nr_chan
-nr_spec = args.nr_spec
-sinc    = args.sinc_kernel
-gauss   = args.gauss_kernel
-hann    = args.hanning_kernel
-box     = args.boxcar_kernel
-binom   = args.binomial_kernel
+args       = create_parser().parse_args([a for a in sys.argv[1:]])
+cubef      = args.cube
+maskf      = args.mask
+nr_chan    = args.nr_chan
+nr_spec    = args.nr_spec
+sinc       = args.sinc_kernel
+gauss      = args.gauss_kernel
+hann       = args.hanning_kernel
+box        = args.boxcar_kernel
+binom      = args.binomial_kernel
+# --------- ADVANCED OPTIONS --------- #
+noise_f    = args.noise_floor
+track_sign = not args.no_track_sign_change
+track_par  = args.track_sign_change_params
+force_sign = args.force_sign_change
+inter_sign = args.interp_sign_change
+
+if noise_f < -1 or noise_f > 100:
+  print('# ERROR: invalid value for -floor/--noise-floor: {0:d}. Only integers between -1 and +100 are allowed.'.format(noise_f))
+  sys.exit()
+
+if track_par[1] < 0 or track_par[1] > 1:
+  print('# ERROR: invalid value for the second parameter value in -trackpar/--track-sign-change-params: {0:.f}. Only floats between 0 and 1 are allowed.'.format(track_par[1]))
+  sys.exit()
+elif track_par[2] < 0 or track_par[2] > 1:
+  print('# ERROR: invalid value for the third parameter value in -trackpar/--track-sign-change-params: {0:.f}. Only floats between 0 and 1 are allowed.'.format(track_par[2]))
+  sys.exit()
+elif track_par[3] < 0 or track_par[3] > 1:
+  print('# ERROR: invalid value for the fourth parameter value in -trackpar/--track-sign-change-params: {0:.f}. Only floats between 0 and 1 are allowed.'.format(track_par[3]))
+  sys.exit()
+else:
+  track_par[0] = int(np.around(track_par[0]))
+  track_par[4] = int(np.around(track_par[4]))
+
+if force_sign and track_sign:
+  print('# ERROR: can only use -force/--force-sign-change together with -notrack/--no-track-sign-change.'.format(noise_f))
+  sys.exit()
 
 # Load the input FITS cube and, if requested, the FITS detection mask
 print('# Loading FITS cube {0:s}'.format(cubef))
@@ -218,9 +311,9 @@ with fits.open(cubef) as f:
     cube = f[0].data
     if len(cube.shape) == 4 and cube.shape[0] == 1:
       cube = cube[0]
-if mskf:
-  print('# Loading FITS detection mask {0:s} as boolean array'.format(mskf))
-  with fits.open(mskf) as f:
+if maskf:
+  print('# Loading FITS detection mask {0:s} as boolean array'.format(maskf))
+  with fits.open(maskf) as f:
     msk = f[0].data.astype(bool)
     if len(msk.shape) == 4 and msk.shape[0] == 1:
       msk = msk[0]
@@ -229,7 +322,7 @@ else:
   msk = np.full(cube.shape, False, dtype=bool)
 
 # Initialise a few things
-if nr_spec < cube.shape[1]*cube.shape[2]:
+if nr_spec <= cube.shape[1]*cube.shape[2]:
   print('# Will extract {0:d} unique random spectra from the input cube ({1:d} available).'.format(nr_spec, cube.shape[1]*cube.shape[2]))
 else:
   print('# ERROR: You are requesting more spectra ({0:d}) than available in cube ({1:d}). Please change this with the -ns option.'.format(nr_spec, cube.shape[1]*cube.shape[2]))
@@ -238,10 +331,10 @@ if nr_chan:
   nr_chan = 2 * (nr_chan // 2) + 1
   print('# Will take {0:d} channels per spectrum ({1:d} available).'.format(nr_chan, cube.shape[0]))
   if cube.shape[0] < nr_chan:
-    nr_chan = 2 * (cube.shape[0] // 2) - 1
+    nr_chan = 2 * ((cube.shape[0]-1) // 2) + 1
     print('# WARNING: Number of channels per spectrum modified to {0:d} to fit within the spectral axis of the input cube.'.format(nr_chan))
 else:
-  nr_chan = 2 * (cube.shape[0] // 2) - 1
+  nr_chan = 2 * ((cube.shape[0]-1) // 2) + 1
   print('# Will take {0:d} channels per spectrum ({1:d} available).'.format(nr_chan, cube.shape[0]))
 spec_z = np.arange(-nr_chan//2+1,nr_chan//2+1)
 spec_autocorr_all = np.zeros((nr_spec,nr_chan))
@@ -250,15 +343,15 @@ spec_autocorr_all = np.zeros((nr_spec,nr_chan))
 # - exclude spectra already extracted
 # - exclude spectra included in the mask
 # - exclude spectra with NaN's
-print('# Extracting unique random spectra and calculating autocorrelation.')
+print('# Extracting unique random spectra F and calculating autocorrelation A_F.')
 ii, skipped = 0, 0
 while ii < nr_spec:
-  if skipped > 2 * nr_spec:
-    print('ERROR: Cannot find enough unique random spectra. Try to lower your request with the -ns option.')
+  if skipped > 3 * nr_spec:
+    print('ERROR: Cannot find enough unique random spectra sufficiently quickly. Try to lower your request with the -ns option.')
     sys.exit()
   x0 = np.random.randint(0,high=cube.shape[2])
   y0 = np.random.randint(0,high=cube.shape[1])
-  z0 = np.random.randint(0,high=cube.shape[0]-nr_chan)
+  z0 = np.random.randint(0,high=cube.shape[0]-nr_chan+1)
   spec = cube[z0:z0+nr_chan,y0,x0]
   if not msk[z0:z0+nr_chan,y0,x0].sum() and not np.isnan(spec).sum():
     spec_autocorr_all[ii] = autocorrelate_fft(spec) # peak = 1 at centre of array
@@ -274,8 +367,8 @@ max_nonzero_autocorr = max(3,np.max(np.abs(np.where(spec_autocorr_mean > spec_au
 kernels, kern_autocorr, knames, deltas = {}, {}, [], []
 delta_tol = 3.
 if sinc or gauss or hann or box or binom:
-  print('# Comparing mean autocorrelation with autocorrelation of known convolution kernels.')
-  print('#   Delta(autocorrelation) calculated with the first {0:d} elements of A after the peak'.format(2*max_nonzero_autocorr))
+  print('# Comparing mean autocorrelation <A_F> with autocorrelation A_K of known convolution kernels:')
+  print('#   delta calculated with the first {0:d} elements of <A_F> after the peak'.format(2*max_nonzero_autocorr))
   if sinc:
     for ss in sinc:
       kernels['sinc-{0:.2f}'.format(ss)] = sinc_kern(spec_z, ss)
@@ -312,13 +405,22 @@ if sinc or gauss or hann or box or binom:
 
 
 # Core calculation: from mean autocorrelation to kernel
-print('# Reconstructing spectral convolution kernel from mean autocorrelation.')
+print('# Reconstructing spectral convolution kernel K from mean autocorrelation <A_F>:')
+print('#   - FT(<A_F>)')
 rec_kernel_psd = np.real(np.fft.fft(np.fft.ifftshift(spec_autocorr_mean))) # note that the kernel is reordered before taking its FT
-rec_kernel_psd[rec_kernel_psd<0] = 0 # the power spectrum is >=0 by definition, and we set small negative numbers to zero as they are numerical errors
+if noise_f != -1:
+  print('#   - remove noise floor from FT(<A_F>) defined as {0:d}-th percentile'.format(noise_f))
+  rec_kernel_psd -= np.percentile(rec_kernel_psd, noise_f) # remove noise floor
+rec_kernel_psd[rec_kernel_psd<0] = 0 # the power spectrum is >=0 by definition
 rec_kernel_fft = np.sqrt(rec_kernel_psd)
 rec_kernel_fft /= np.nanmax(np.abs(rec_kernel_fft))
-rec_kernel_fft_sign = track_ft_sign_smooth(rec_kernel_fft, local_min_frac=0.7, local_d1_frac=0.5, interp_excl=10, interp_incl=10, interp_order=2, verbose=0) # this fixes the sign ambiguity; nr of chans to exclude and include on either side of the sign-changing chan
-rec_kernel = np.real(np.fft.ifft(rec_kernel_fft_sign))
+if track_sign or force_sign:
+  rec_kernel_fft_sign = track_ft_sign_smooth(rec_kernel_fft, track_par, inter_sign, force_sign)
+print('#   - K = IFT{+/- sqrt[FT(<A_F>)]}')
+if track_sign or force_sign:
+  rec_kernel = np.real(np.fft.ifft(rec_kernel_fft_sign))
+else:
+  rec_kernel = np.real(np.fft.ifft(rec_kernel_fft))
 rec_kernel = np.fft.ifftshift(rec_kernel)
 rec_kernel /= np.nanmax(rec_kernel)
 rec_kernel = np.roll(rec_kernel, -1)
@@ -332,7 +434,7 @@ while ii_area < nr_chan and np.median(np.abs(rec_area[-ii_area:] - np.median(rec
 ii_area -= 1
 rec_area_std = np.median(np.abs(rec_area[-ii_area:] - np.median(rec_area[-ii_area:])))
 rec_area_med = np.median(rec_area[-ii_area:])
-print('# Kernel area = {0:.2f} channels (best guess of asymptotic value = median of last {1:d} channels).'.format(rec_area_med, ii_area))
+print('# Kernel area = integral(K/K_max) = {0:.2f} channels (best guess of asymptotic value = median of last {1:d} channels).'.format(rec_area_med, ii_area))
 
 # Additional variables for plotting
 spec_autocorr_p16  = np.nanpercentile(spec_autocorr_all, 16, axis=0)
@@ -358,14 +460,20 @@ ax1.legend(fontsize=13)
 ax1.set_xlim(0, 5*max_nonzero_autocorr)
 ax1.set_ylabel('$A$')
 
-ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=8, alpha=0.3, label='$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$')
-ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft_sign)), 'k-', ds='steps-mid', lw=3, alpha=1, label='$\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$')
+if track_sign or force_sign:
+  ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=8, alpha=0.3, label='$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$')
+  ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft_sign)), 'k-', ds='steps-mid', lw=3, alpha=1, label='$\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$')
+else:
+  ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=3, alpha=1, label='$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$')
 ax2.axhline(y=0, color='k', ls=':')
 ax2.legend(fontsize=13)
 ax2.set_xlim(0,nr_chan//2)
 ax2.set_ylabel('$\\sqrt{\\mathcal{F}A}$')
 
-ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label='$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$')
+if track_sign or force_sign:
+  ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label='$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$')
+else:
+  ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label='$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$')
 ax3.axhline(y=0, color='k', ls=':')
 colind = 0
 for kk in knames:
@@ -378,11 +486,11 @@ ax3.set_ylabel('$K$')
 ax4.plot(np.arange(nr_chan//2), rec_area, 'k-', ds='steps-post', alpha=0.3, lw=3)
 ax4.plot(np.arange(nr_chan//2-ii_area,nr_chan//2), rec_area[-ii_area:], 'k-', ds='steps-post', alpha=1, lw=3)
 ax4.plot([nr_chan//2-ii_area, nr_chan//2-ii_area], [0.9 * rec_area_med, 1.1 * rec_area_med], 'k:')
-ax4.axhline(y=rec_area_med, color='k', ls=':', label='$\\int{{ K }} \\to$ {0:.2f} channels'.format(rec_area_med))
+ax4.axhline(y=rec_area_med, color='k', ls=':', label='$\\int{{ K / K_\\mathrm{{max}}}} \\to$ {0:.2f} channels'.format(rec_area_med))
 ax4.legend(fontsize=13)
 ax4.set_xlim(0,nr_chan//2)
 ax4.set_ylim(0,1.1*rec_area.max())
-ax4.set_ylabel('cumulative $\\int{K}$')
+ax4.set_ylabel('cumulative $\\int{K / K_\\mathrm{max}}$')
 
 plt.tight_layout()
 plt.show()
