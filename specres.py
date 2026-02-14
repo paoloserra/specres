@@ -343,10 +343,10 @@ spec_autocorr_all = np.zeros((nr_spec,nr_chan))
 # - exclude spectra already extracted
 # - exclude spectra included in the mask
 # - exclude spectra with NaN's
-print('# Extracting unique random spectra F and calculating autocorrelation A_F.')
+print('# Extracting {0:d} unique random spectra F and calculating autocorrelation A_F.'.format(nr_spec))
 ii, skipped = 0, 0
 while ii < nr_spec:
-  if skipped > 3 * nr_spec:
+  if skipped > 10 * nr_spec:
     print('ERROR: Cannot find enough unique random spectra sufficiently quickly. Try to lower your request with the -ns option.')
     sys.exit()
   x0 = np.random.randint(0,high=cube.shape[2])
