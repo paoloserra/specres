@@ -40,22 +40,23 @@ optional arguments:
 
 optional advanced arguments:
   -notrack, --no-track-sign-change
-                        *** ADVANCED OPTION *** Skip the sign tracking of +/- sqrt[FT(<A_F>)] and always take the + sign.
+                        *** ADVANCED OPTION *** Skip the sign tracking of +/- sqrt[FT(<A_F>)]. This means always taking the + sign unless the user forces the sign change at specific points with -force.
   -trackpar TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS, --track-sign-change-params TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS
                         *** ADVANCED OPTION *** Space-separated parameters of the algorithm that tracks the sign of +/- sqrt[FT(<A_F>)]. The algorithm looks for local minima sufficiently close to zero. The
                         five parameters are: 1) Half-width of the window used to check whether a point is a local minimum, to be rounded to the nearest integer. Default = 15. 2) Minimum fraction of points
-                        with a larger value inside the above window. Must be between 0 and 1, with higher values giving fewer sign changes. Default = 0.7. 3) Minumum fraction of points with a negative
-                        (positive) 1st derivative on the side closer to (farther from) the zero-frequency term. Must be between 0 and 1, with higher values giving fewer sign changes. Default = 0.5. 4)
-                        Maximum ratio between the point and the peak. Must be between 0 and 1, with lower values giving fewer sign changes. Default = 0.1. 5) Minimum distance from another local minimum
-                        candidate, to be rounded to the nearest integer. Points closer than this limit are grouped together in a friends-of-friends way, and only the median point of each group is retained).
-                        Default = 5.
+                        with a larger value than the central point inside the above window. Must be between 0 and 1, with higher values giving fewer sign changes. Default = 0.7. 3) Minumum fraction of
+                        points with a negative (positive) 1st derivative on the side closer to (farther from) the zero-frequency term. Must be between 0 and 1, with higher values giving fewer sign changes.
+                        Default = 0.5. 4) Maximum ratio between the point and the peak. Must be between 0 and 1, with lower values giving fewer sign changes. Default = 0.1. 5) Minimum distance from another
+                        local minimum candidate, to be rounded to the nearest integer. Points closer than this limit are grouped together in a friends-of-friends way, and only the median point of each group
+                        is retained). Default = 5.
   -force FORCE_SIGN_CHANGE [FORCE_SIGN_CHANGE ...], --force-sign-change FORCE_SIGN_CHANGE [FORCE_SIGN_CHANGE ...]
-                        *** ADVANCED OPTION *** Space-separated list of points where to change the sign of sqrt[FT(<A_F>)]. Can only be used with -notrack.
+                        *** ADVANCED OPTION *** Space-separated list of points where to force a sign change of sqrt[FT(<A_F>)]. Can only be used with -notrack, because the sign tracking algorithm would
+                        generally give a conflicting list of points.
   -interp INTERP_SIGN_CHANGE INTERP_SIGN_CHANGE INTERP_SIGN_CHANGE, --interp-sign-change INTERP_SIGN_CHANGE INTERP_SIGN_CHANGE INTERP_SIGN_CHANGE
-                        *** ADVANCED OPTION *** Space-separated parameters used for interpolating sqrt[FT(<A_F>)] across the sign-changing points. Interpolation avoids abrupt jumps across the zero line in
-                        case of significan noise floor. The three parameters are: 1) Number of points to be included in the interpolation on either side of the point. Default = 10. Set to 0 for no
-                        interpolation. 2) Order of the fit. Default = 2. 3) Number of points to be excluded from the interpolation on either side of the point. If > 0, the above number of points included in
-                        the interpolation does not change, and the points included move outward. Default = 10.
+                        *** ADVANCED OPTION *** Space-separated parameters used for interpolating sqrt[FT(<A_F>)] across the sign-changing points, whether found by the sign tracking algorithm or given by
+                        the user. Interpolation avoids abrupt jumps across the zero line in case of significan noise floor. The three parameters are: 1) Number of points to be included in the interpolation
+                        on either side of the point. Default = 10. Set to 0 for no interpolation. 2) Order of the fit. Default = 2. 3) Number of points to be excluded from the interpolation on either side
+                        of the point. If > 0, the above number of points included in the interpolation does not change, and the points included move outward. Default = 10.
   -floor NOISE_FLOOR, --noise-floor NOISE_FLOOR
                         *** ADVANCED OPTION *** Calculate the noise floor of FT(<A_F>) as the selected percentile (0 to 100), and subtract it before reconstructing the kernel K. Default = -1 = no noise
                         floor removal.

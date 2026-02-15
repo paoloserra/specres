@@ -28,8 +28,9 @@ def create_parser():
   # --------------------------------- ADVANCED OPTIONS --------------------------------- #
   p.add_argument("-notrack", "--no-track-sign-change", action="store_true",
                  help="*** ADVANCED OPTION ***"
-                 " Skip the sign tracking of +/- sqrt[FT(<A_F>)] and always take the"
-                 " + sign.")
+                 " Skip the sign tracking of +/- sqrt[FT(<A_F>)]. This means always taking"
+                 " the + sign unless the user forces the sign change at specific points"
+                 " with -force.")
   p.add_argument("-trackpar", "--track-sign-change-params", type=float, nargs=5,
                  default=[15, 0.7, 0.5, 0.1, 5], help="*** ADVANCED OPTION ***"
                  " Space-separated parameters of the algorithm that tracks the sign of"
