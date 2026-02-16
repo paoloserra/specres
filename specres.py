@@ -5,13 +5,17 @@ def create_parser():
   p = argparse.ArgumentParser()
   p.add_argument("-c", "--cube", type=str, required=True,
                  help="Input FITS cube.")
-  p.add_argument("-m", "--mask", type=str, help="Optional FITS detection mask."
-                 " Spectra including detected voxels are excluded from the analysis.")
+  p.add_argument("-m", "--mask", type=str,
+                 help="Optional FITS detection mask. Spectra including detected voxels"
+                 " are excluded from the analysis.")
   p.add_argument("-nspec", "--nr-spec", type=int, default=1000,
                  help="Number of unique random spectra to be extracted from the input FITS"
                  " cube. Default = 1000.")
   p.add_argument("-nchan", "--nr-chan", type=int, default=0,
                  help="Number of channels per spectrum. Default = 0 = all channels.")
+  p.add_argument("-o", "--output", type=str, default=None,
+                 help="Name of the output plot including the extension. Default = None"
+                 " = system interactive backend.")
   p.add_argument("-sinc", "--sinc-kernel", type=float, nargs='+', required = False,
                  help="Space-separated list of scales for comparison Sinc kernels.")
   p.add_argument("-gauss", "--gauss-kernel", type=float, nargs='+', required = False,
@@ -285,6 +289,7 @@ cubef      = args.cube
 maskf      = args.mask
 nr_chan    = args.nr_chan
 nr_spec    = args.nr_spec
+output     = args.output
 sinc       = args.sinc_kernel
 gauss      = args.gauss_kernel
 hann       = args.hanning_kernel
@@ -544,4 +549,7 @@ ax4.set_ylim(0,1.1*rec_area.max())
 ax4.set_ylabel('cumulative $\\int{K / K_\\mathrm{max}}$')
 
 plt.tight_layout()
-plt.show()
+if output:
+  plt.savefig(output)
+else:
+  plt.show()
