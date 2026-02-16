@@ -26,6 +26,18 @@ def create_parser():
                  help="Space-separated list of widths for comparison Binomial kernels."
                  " Only odd numbers > 1 will be considered.")
   # --------------------------------- ADVANCED OPTIONS --------------------------------- #
+  p.add_argument("-artlen", "--artefacts-autocorr-length", type=int, default=-1,
+                 help="*** ADVANCED OPTION ***"
+                 " Autocorrelation coefficients from this length on are assumed to be"
+                 " due to artefacts (e.g., from continuum subtraction). We fit them with a"
+                 " polynomial of order set by -artord, and subtract the result from"
+                 " <A_F> before calculating K. Default = 0 (or any value < 0) means that"
+                 " the data cube is assumed to have no artefatcs.")
+  p.add_argument("-artord", "--artefacts-autocorr-order", type=int, default=2,
+                 help="*** ADVANCED OPTION ***"
+                 " Polynomial order used when fitting <A_F> beyond the length set by"
+                 " -artlen in order to model the autocorrelation caused by artefacts."
+                 " Default - 2.")
   p.add_argument("-notrack", "--no-track-sign-change", action="store_true",
                  help="*** ADVANCED OPTION ***"
                  " Skip the sign tracking of +/- sqrt[FT(<A_F>)]. This means always taking"
@@ -178,7 +190,7 @@ def change_sign(uval, upos, interp_incl, interp_order, interp_excl):
   return(uval_new)
 
 # sign tracking function
-def track_ft_sign_smooth(x, track_sign_par, inter_sign_change, pos_sign_change, max_sign_change=1000, verbose=0):
+def track_ft_sign_smooth(x, track_sign_par, inter_sign_change, pos_sign_change, zlab, max_sign_change=1000, verbose=0):
   # Starting from the centre, find a point that meets these requirements:
   # 1) most neighbours within a symmetric window have a larger value
   #    (fraction neighbours > local_min_frac);
@@ -207,7 +219,7 @@ def track_ft_sign_smooth(x, track_sign_par, inter_sign_change, pos_sign_change, 
   else:
     pos_sign_change = [sc + x.shape[0]//2 for sc in pos_sign_change]
   if not len(pos_sign_change):
-    print('#   - track sign change of sqrt[FT(<A_F>)]')
+    print('#   - track sign change of sqrt[FT(<A_F>{0:s})]'.format(zlab))
     # start loop, moving from the centre towards high channels
     for jj in np.arange(x.shape[0]//2, x.shape[0]-max(window, interp_excl+interp_incl)):
       # condition 1
@@ -279,12 +291,15 @@ hann       = args.hanning_kernel
 box        = args.boxcar_kernel
 binom      = args.binomial_kernel
 # --------- ADVANCED OPTIONS --------- #
+art_len    = args.artefacts_autocorr_length
+art_ord    = args.artefacts_autocorr_order
 noise_f    = args.noise_floor
 track_sign = not args.no_track_sign_change
 track_par  = args.track_sign_change_params
 force_sign = args.force_sign_change
 inter_sign = args.interp_sign_change
 
+# Check that the settings are valid
 if noise_f < -1 or noise_f > 100:
   print('# ERROR: invalid value for -floor/--noise-floor: {0:d}. Only integers between -1 and +100 are allowed.'.format(noise_f))
   sys.exit()
@@ -360,16 +375,37 @@ while ii < nr_spec:
     ii += 1
   else:
     skipped += 1
+print('# Calculating mean autocorrelation <A_F>.')
 spec_autocorr_mean = np.nanmean(spec_autocorr_all, axis=0)
 spec_autocorr_std  = np.nanstd(spec_autocorr_all, axis=0)
-max_nonzero_autocorr = max(3,np.max(np.abs(np.where(spec_autocorr_mean > spec_autocorr_std)[0] - nr_chan//2)))
+
+# Fit <A_F> beyond art_len with a polynomial of order art_ord. The result will be later subtracted from <A_F>
+art_autocorr = np.zeros(spec_z.shape)
+if art_len > 0:
+  if art_ord == 1:
+    art_ord_lab = 'st'
+  if art_ord == 2:
+    art_ord_lab = 'nd'
+  if art_ord == 3:
+    art_ord_lab = 'rd'
+  else:
+    art_ord_lab = 'th'
+  print('# Estimating autocorrelation Z caused by artefacts with a {0:d}{1:s} order polynomial fit to <A_F> beyond scale {2:d}'.format(art_ord, art_ord_lab, art_len))
+  art_coeffs = np.polyfit(spec_z[nr_chan//2+art_len:], spec_autocorr_mean[nr_chan//2+art_len:], 2, w=1./spec_autocorr_std[nr_chan//2+art_len:])[::-1]
+  for oo in range(art_coeffs.shape[0]):
+    art_autocorr[nr_chan//2:] += art_coeffs[oo] * spec_z[nr_chan//2:]**oo
+  art_autocorr[:nr_chan//2] = art_autocorr[nr_chan//2+1:][::-1]
+Z_label = '-Z' if art_len > 0 else ''
+
+# Calculate maximum autocorrelation length with coefficients significantly above zero (or above the artefacts fit)
+max_nonzero_autocorr = max(3,np.max(np.abs(np.where((spec_autocorr_mean - art_autocorr) > spec_autocorr_std)[0] - nr_chan//2)))
 
 # Compare mean autocorrelation to autocorrelation of requested kernels
 kernels, kern_autocorr, knames, deltas = {}, {}, [], []
 delta_tol = 3.
 if sinc or gauss or hann or box or binom:
-  print('# Comparing mean autocorrelation <A_F> with autocorrelation A_K of known convolution kernels:')
-  print('#   delta calculated with the first {0:d} elements of <A_F> after the peak'.format(2*max_nonzero_autocorr))
+  print('# Comparing mean autocorrelation <A_F>{0:s} with autocorrelation A_K of known convolution kernels:'.format(Z_label))
+  print('#   delta calculated with the first {0:d} elements of <A_F>{1:s} after the peak'.format(2*max_nonzero_autocorr, Z_label))
   if sinc:
     for ss in sinc:
       kernels['sinc-{0:.2f}'.format(ss)] = sinc_kern(spec_z, ss)
@@ -391,7 +427,7 @@ if sinc or gauss or hann or box or binom:
   for kk in kernels:
     kern_autocorr[kk] = autocorrelate_fft(kernels[kk])
     knames.append(kk)
-    deltas.append(np.nanmean((spec_autocorr_mean[nr_chan//2+1:nr_chan//2+2*max_nonzero_autocorr+1] - kern_autocorr[kk][nr_chan//2+1:nr_chan//2+2*max_nonzero_autocorr+1])**2 / spec_autocorr_std[nr_chan//2+1:nr_chan//2+2*max_nonzero_autocorr+1]**2))
+    deltas.append(np.nanmean(((spec_autocorr_mean-art_autocorr)[nr_chan//2+1:nr_chan//2+2*max_nonzero_autocorr+1] - kern_autocorr[kk][nr_chan//2+1:nr_chan//2+2*max_nonzero_autocorr+1])**2 / spec_autocorr_std[nr_chan//2+1:nr_chan//2+2*max_nonzero_autocorr+1]**2))
   knames, deltas = np.array(knames), np.array(deltas)
   knames, deltas = knames[np.argsort(deltas)], deltas[np.argsort(deltas)]
   print('#   {0:15s} {1:8s}   {2}'.format('kernel-name','delta', 'area'))
@@ -406,18 +442,18 @@ if sinc or gauss or hann or box or binom:
 
 
 # Core calculation: from mean autocorrelation to kernel
-print('# Reconstructing spectral convolution kernel K from mean autocorrelation <A_F>:')
-print('#   - FT(<A_F>)')
-rec_kernel_psd = np.real(np.fft.fft(np.fft.ifftshift(spec_autocorr_mean))) # note that the kernel is reordered before taking its FT
+print('# Reconstructing spectral convolution kernel K from mean autocorrelation <A_F>{0:s}:'.format(Z_label))
+print('#   - FT(<A_F>{0:s})'.format(Z_label))
+rec_kernel_psd = np.real(np.fft.fft(np.fft.ifftshift(spec_autocorr_mean-art_autocorr))) # note that the kernel is reordered before taking its FT
 if noise_f != -1:
-  print('#   - remove noise floor from FT(<A_F>) defined as {0:d}-th percentile'.format(noise_f))
+  print('#   - remove noise floor from FT(<A_F>{0:s}) defined as {1:d}-th percentile'.format(Z_label, noise_f))
   rec_kernel_psd -= np.percentile(rec_kernel_psd, noise_f) # remove noise floor
 rec_kernel_psd[rec_kernel_psd<0] = 0 # the power spectrum is >=0 by definition
 rec_kernel_fft = np.sqrt(rec_kernel_psd)
 rec_kernel_fft /= np.nanmax(np.abs(rec_kernel_fft))
 if track_sign or force_sign:
-  rec_kernel_fft_sign = track_ft_sign_smooth(rec_kernel_fft, track_par, inter_sign, force_sign)
-print('#   - K = IFT{+/- sqrt[FT(<A_F>)]}')
+  rec_kernel_fft_sign = track_ft_sign_smooth(rec_kernel_fft, track_par, inter_sign, force_sign, Z_label)
+print('#   - K = IFT{{+/- sqrt[FT(<A_F>{0:s})]}}'.format(Z_label))
 if track_sign or force_sign:
   rec_kernel = np.real(np.fft.ifft(rec_kernel_fft_sign))
 else:
@@ -451,6 +487,8 @@ ax3 = plt.subplot(223)
 ax4 = plt.subplot(224)
 
 ax1.plot(spec_z, spec_autocorr_mean, 'k-', ds='steps-mid', label='$\\langle A_F \\rangle $ from {0:d} spectra'.format(nr_spec), lw=3)
+if art_len > 0:
+  ax1.plot(spec_z, art_autocorr, 'r--', label='$Z$ = artefacts', lw=1)
 ax1.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ and $84^\\mathrm{th}$ perc.')
 ax1.axhline(y=0, color='k', ls=':')
 colind = 0
@@ -461,20 +499,32 @@ ax1.legend(fontsize=13)
 ax1.set_xlim(0, 5*max_nonzero_autocorr)
 ax1.set_ylabel('$A$')
 
-if track_sign or force_sign:
-  ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=8, alpha=0.3, label='$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$')
-  ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft_sign)), 'k-', ds='steps-mid', lw=3, alpha=1, label='$\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$')
+if art_len > 0:
+  lab2_1 = '$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }$'
+  lab2_2 = '$\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z })$'
 else:
-  ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=3, alpha=1, label='$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$')
+  lab2_1 = '$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$'
+  lab2_2 = '$\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$'
+if track_sign or force_sign:
+  ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=8, alpha=0.3, label=lab2_1)
+  ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft_sign)), 'k-', ds='steps-mid', lw=3, alpha=1, label=lab2_2)
+else:
+  ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=3, alpha=1, label=lab2_1)
 ax2.axhline(y=0, color='k', ls=':')
 ax2.legend(fontsize=13)
 ax2.set_xlim(0,nr_chan//2)
 ax2.set_ylabel('$\\sqrt{\\mathcal{F}A}$')
 
-if track_sign or force_sign:
-  ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label='$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$')
+if art_len > 0:
+  lab3_1 = '$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z })$'
+  lab3_2 = '$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }$'
 else:
-  ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label='$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$')
+  lab3_1 = '$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$'
+  lab3_2 = '$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$'
+if track_sign or force_sign:
+  ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label=lab3_1)
+else:
+  ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label=lab3_2)
 ax3.axhline(y=0, color='k', ls=':')
 colind = 0
 for kk in knames:
