@@ -281,7 +281,8 @@ import argparse, sys
 from astropy.io import fits
 from matplotlib import pyplot as plt
 plt.rcParams['text.usetex'] = True
-plt.rcParams.update({'font.size': 22})
+plt.rcParams.update({'font.size': 16})
+legend_font_size = 10
 
 # Read settings from command line
 args       = create_parser().parse_args([a for a in sys.argv[1:]])
@@ -437,13 +438,12 @@ if sinc or gauss or hann or box or binom:
   knames, deltas = knames[np.argsort(deltas)], deltas[np.argsort(deltas)]
   print('#   {0:15s} {1:8s}   {2}'.format('kernel-name','delta', 'area'))
   for kk in range(len(knames)):
-    if deltas[kk] < delta_tol * deltas.min():
+    if kk < 3 and deltas[kk] < delta_tol * deltas.min():
       print('#   {0:15s} {1:8.2e}   {2:.2f}  (plotted)'.format(knames[kk], deltas[kk], kernels[knames[kk]].sum()))
     else:
       print('#   {0:15s} {1:8.2e}'.format(knames[kk], deltas[kk]))
-  # Select kernels to plot (delta within a factor of 2 of best delta, and no more than 5 kernels)
-  knames = knames[deltas < delta_tol * deltas.min()]
-  knames = knames[:5]
+  # Select kernels to plot (delta within a factor of delta_tol of best delta, and no more than 3 kernels)
+  knames = knames[deltas < delta_tol * deltas.min()][:3]
 
 
 # Core calculation: from mean autocorrelation to kernel
@@ -481,27 +481,40 @@ print('# Kernel area = integral(K/K_max) = {0:.2f} channels (best guess of asymp
 # Additional variables for plotting
 spec_autocorr_p16  = np.nanpercentile(spec_autocorr_all, 16, axis=0)
 spec_autocorr_p84  = np.nanpercentile(spec_autocorr_all, 84, axis=0)
-kcolors = ['red', 'orange', 'green', 'cyan', 'blue']
+kcolors = ['orange', 'green', 'blue']
 
 # Plotting
-fig = plt.figure(figsize=(12,8))
-fig.subplots_adjust(left=0.11, right=0.96, top=0.97, bottom=0.06, hspace=0.28)
-ax1 = plt.subplot(221)
-ax2 = plt.subplot(222)
-ax3 = plt.subplot(223)
-ax4 = plt.subplot(224)
+fig = plt.figure(figsize=(9,8))
+gs = fig.add_gridspec(3, 2, height_ratios=[1,1,1])
+ax0 = plt.subplot(gs[0,:])
+ax1 = plt.subplot(gs[1,0])
+ax2 = plt.subplot(gs[1,1])
+ax3 = plt.subplot(gs[2,0])
+ax4 = plt.subplot(gs[2,1])
+
+ax0.plot(spec_z, spec_autocorr_mean, 'k-', ds='steps-mid', label='$\\langle A_F \\rangle $ from {0:d} spectra'.format(nr_spec), lw=3)
+ax0.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ - $84^\\mathrm{th}$ perc.')
+if art_len > 0:
+  ax0.plot(spec_z, art_autocorr, 'r--', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
+ax0.axhline(y=0, color='k', ls=':')
+ax0.legend(fontsize=legend_font_size, ncols=3)
+ax0.set_xlim(0,nr_chan//2)
+ax0.set_ylim(np.nanmin(spec_autocorr_p16[nr_chan//2+2*max_nonzero_autocorr:]), np.nanmax(spec_autocorr_p84[nr_chan//2+2*max_nonzero_autocorr:]))
+ax0.set_xlabel('$\\Delta$ channel')
+ax0.set_ylabel('$A$')
 
 ax1.plot(spec_z, spec_autocorr_mean, 'k-', ds='steps-mid', label='$\\langle A_F \\rangle $ from {0:d} spectra'.format(nr_spec), lw=3)
+ax1.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ - $84^\\mathrm{th}$ perc.')
 if art_len > 0:
-  ax1.plot(spec_z, art_autocorr, 'r--', label='$Z$ = artefacts', lw=1)
-ax1.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ and $84^\\mathrm{th}$ perc.')
+  ax1.plot(spec_z, art_autocorr, 'r--', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
 ax1.axhline(y=0, color='k', ls=':')
 colind = 0
 for kk in knames:
   ax1.plot(spec_z, kern_autocorr[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$A_K$({0:s})'.format(kk))
   colind += 1
-ax1.legend(fontsize=13)
+ax1.legend(fontsize=legend_font_size)
 ax1.set_xlim(0, 5*max_nonzero_autocorr)
+ax1.set_xlabel('$\\Delta$ channel')
 ax1.set_ylabel('$A$')
 
 if art_len > 0:
@@ -516,9 +529,10 @@ if track_sign or force_sign:
 else:
   ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=3, alpha=1, label=lab2_1)
 ax2.axhline(y=0, color='k', ls=':')
-ax2.legend(fontsize=13)
+ax2.legend(fontsize=legend_font_size)
 ax2.set_xlim(0,nr_chan//2)
-ax2.set_ylabel('$\\sqrt{\\mathcal{F}A}$')
+ax2.set_xlabel('conjugate channel')
+ax2.set_ylabel('$\\mathcal{F}K$')
 
 if art_len > 0:
   lab3_1 = '$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z })$'
@@ -535,18 +549,20 @@ colind = 0
 for kk in knames:
   ax3.plot(spec_z, kernels[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$K$({0:s})'.format(kk))
   colind += 1
-ax3.legend(fontsize=13)
+ax3.legend(fontsize=legend_font_size)
 ax3.set_xlim(0, 5*max_nonzero_autocorr)
+ax3.set_xlabel('channel')
 ax3.set_ylabel('$K$')
 
 ax4.plot(np.arange(nr_chan//2), rec_area, 'k-', ds='steps-post', alpha=0.3, lw=3)
 ax4.plot(np.arange(nr_chan//2-ii_area,nr_chan//2), rec_area[-ii_area:], 'k-', ds='steps-post', alpha=1, lw=3)
 ax4.plot([nr_chan//2-ii_area, nr_chan//2-ii_area], [0.9 * rec_area_med, 1.1 * rec_area_med], 'k:')
 ax4.axhline(y=rec_area_med, color='k', ls=':', label='$\\int{{ K / K_\\mathrm{{max}}}} \\to$ {0:.2f} channels'.format(rec_area_med))
-ax4.legend(fontsize=13)
+ax4.legend(fontsize=legend_font_size)
 ax4.set_xlim(0,nr_chan//2)
 ax4.set_ylim(0,1.1*rec_area.max())
-ax4.set_ylabel('cumulative $\\int{K / K_\\mathrm{max}}$')
+ax4.set_xlabel('channel')
+ax4.set_ylabel('cumul. $\\int{K / K_\\mathrm{max}}$')
 
 plt.tight_layout()
 if output:
