@@ -1,3 +1,9 @@
+# Import modules on top
+import numpy as np
+import argparse, sys
+from astropy.io import fits
+from matplotlib import pyplot as plt
+
 # Define functions
 
 # read arguments
@@ -275,297 +281,298 @@ def track_ft_sign_smooth(x, track_sign_par, inter_sign_change, pos_sign_change, 
   x = np.fft.ifftshift(x)
   return(x)
 
-# Import modules
-import numpy as np
-import argparse, sys
-from astropy.io import fits
-from matplotlib import pyplot as plt
-plt.rcParams['text.usetex'] = True
-plt.rcParams.update({'font.size': 16})
-legend_font_size = 10
 
-# Read settings from command line
-args       = create_parser().parse_args([a for a in sys.argv[1:]])
-cubef      = args.cube
-maskf      = args.mask
-nr_chan    = args.nr_chan
-nr_spec    = args.nr_spec
-output     = args.output
-sinc       = args.sinc_kernel
-gauss      = args.gauss_kernel
-hann       = args.hanning_kernel
-box        = args.boxcar_kernel
-binom      = args.binomial_kernel
-# --------- ADVANCED OPTIONS --------- #
-art_len    = args.artefacts_autocorr_length
-art_ord    = args.artefacts_autocorr_order
-noise_f    = args.noise_floor
-track_sign = not args.no_track_sign_change
-track_par  = args.track_sign_change_params
-force_sign = args.force_sign_change
-inter_sign = args.interp_sign_change
+def main():
+  plt.rcParams['text.usetex'] = True
+  plt.rcParams.update({'font.size': 16})
+  legend_font_size = 10
 
-# Check that the settings are valid
-if noise_f < -1 or noise_f > 100:
-  print('# ERROR: invalid value for -floor/--noise-floor: {0:d}. Only integers between -1 and +100 are allowed.'.format(noise_f))
-  sys.exit()
+  # Read settings from command line
+  args       = create_parser().parse_args([a for a in sys.argv[1:]])
+  cubef      = args.cube
+  maskf      = args.mask
+  nr_chan    = args.nr_chan
+  nr_spec    = args.nr_spec
+  output     = args.output
+  sinc       = args.sinc_kernel
+  gauss      = args.gauss_kernel
+  hann       = args.hanning_kernel
+  box        = args.boxcar_kernel
+  binom      = args.binomial_kernel
+  # --------- ADVANCED OPTIONS --------- #
+  art_len    = args.artefacts_autocorr_length
+  art_ord    = args.artefacts_autocorr_order
+  noise_f    = args.noise_floor
+  track_sign = not args.no_track_sign_change
+  track_par  = args.track_sign_change_params
+  force_sign = args.force_sign_change
+  inter_sign = args.interp_sign_change
 
-if track_par[1] < 0 or track_par[1] > 1:
-  print('# ERROR: invalid value for the second parameter value in -trackpar/--track-sign-change-params: {0:.f}. Only floats between 0 and 1 are allowed.'.format(track_par[1]))
-  sys.exit()
-elif track_par[2] < 0 or track_par[2] > 1:
-  print('# ERROR: invalid value for the third parameter value in -trackpar/--track-sign-change-params: {0:.f}. Only floats between 0 and 1 are allowed.'.format(track_par[2]))
-  sys.exit()
-elif track_par[3] < 0 or track_par[3] > 1:
-  print('# ERROR: invalid value for the fourth parameter value in -trackpar/--track-sign-change-params: {0:.f}. Only floats between 0 and 1 are allowed.'.format(track_par[3]))
-  sys.exit()
-else:
-  track_par[0] = int(np.around(track_par[0]))
-  track_par[4] = int(np.around(track_par[4]))
-
-if force_sign and track_sign:
-  print('# ERROR: can only use -force/--force-sign-change together with -notrack/--no-track-sign-change.'.format(noise_f))
-  sys.exit()
-
-# Load the input FITS cube and, if requested, the FITS detection mask
-print('# Loading FITS cube {0:s}'.format(cubef))
-with fits.open(cubef) as f:
-    cube = f[0].data
-    if len(cube.shape) == 4 and cube.shape[0] == 1:
-      cube = cube[0]
-if maskf:
-  print('# Loading FITS detection mask {0:s} as boolean array'.format(maskf))
-  with fits.open(maskf) as f:
-    msk = f[0].data.astype(bool)
-    if len(msk.shape) == 4 and msk.shape[0] == 1:
-      msk = msk[0]
-else:
-  print('# WARNING: No FITS detection mask given. Will assume the cube is pure noise.')
-  msk = np.full(cube.shape, False, dtype=bool)
-
-# Initialise a few things
-if nr_spec <= cube.shape[1]*cube.shape[2]:
-  print('# Will extract {0:d} unique random spectra from the input cube ({1:d} available).'.format(nr_spec, cube.shape[1]*cube.shape[2]))
-else:
-  print('# ERROR: You are requesting more spectra ({0:d}) than available in cube ({1:d}). Please change this with the -ns option.'.format(nr_spec, cube.shape[1]*cube.shape[2]))
-  sys.exit()
-if nr_chan:
-  nr_chan = 2 * (nr_chan // 2) + 1
-  print('# Will take {0:d} channels per spectrum ({1:d} available).'.format(nr_chan, cube.shape[0]))
-  if cube.shape[0] < nr_chan:
-    nr_chan = 2 * ((cube.shape[0]-1) // 2) + 1
-    print('# WARNING: Number of channels per spectrum modified to {0:d} to fit within the spectral axis of the input cube.'.format(nr_chan))
-else:
-  nr_chan = 2 * ((cube.shape[0]-1) // 2) + 1
-  print('# Will take {0:d} channels per spectrum ({1:d} available).'.format(nr_chan, cube.shape[0]))
-spec_z = np.arange(-nr_chan//2+1,nr_chan//2+1)
-spec_autocorr_all = np.zeros((nr_spec,nr_chan))
-
-# Extract random spectra from cube, with some constraints:
-# - exclude spectra already extracted
-# - exclude spectra included in the mask
-# - exclude spectra with NaN's
-print('# Extracting {0:d} unique random spectra F and calculating autocorrelation A_F.'.format(nr_spec))
-ii, skipped = 0, 0
-while ii < nr_spec:
-  if skipped > 10 * nr_spec:
-    print('ERROR: Cannot find enough unique random spectra sufficiently quickly. Try to lower your request with the -ns option.')
+  # Check that the settings are valid
+  if noise_f < -1 or noise_f > 100:
+    print('# ERROR: invalid value for -floor/--noise-floor: {0:d}. Only integers between -1 and +100 are allowed.'.format(noise_f))
     sys.exit()
-  x0 = np.random.randint(0,high=cube.shape[2])
-  y0 = np.random.randint(0,high=cube.shape[1])
-  z0 = np.random.randint(0,high=cube.shape[0]-nr_chan+1)
-  spec = cube[z0:z0+nr_chan,y0,x0]
-  if not msk[z0:z0+nr_chan,y0,x0].sum() and not np.isnan(spec).sum():
-    spec_autocorr_all[ii] = autocorrelate_fft(spec) # peak = 1 at centre of array
-    msk[z0:z0+nr_chan,y0,x0] = True
-    ii += 1
+
+  if track_par[1] < 0 or track_par[1] > 1:
+    print('# ERROR: invalid value for the second parameter value in -trackpar/--track-sign-change-params: {0:.f}. Only floats between 0 and 1 are allowed.'.format(track_par[1]))
+    sys.exit()
+  elif track_par[2] < 0 or track_par[2] > 1:
+    print('# ERROR: invalid value for the third parameter value in -trackpar/--track-sign-change-params: {0:.f}. Only floats between 0 and 1 are allowed.'.format(track_par[2]))
+    sys.exit()
+  elif track_par[3] < 0 or track_par[3] > 1:
+    print('# ERROR: invalid value for the fourth parameter value in -trackpar/--track-sign-change-params: {0:.f}. Only floats between 0 and 1 are allowed.'.format(track_par[3]))
+    sys.exit()
   else:
-    skipped += 1
-print('# Calculating mean autocorrelation <A_F>.')
-spec_autocorr_mean = np.nanmean(spec_autocorr_all, axis=0)
-spec_autocorr_std  = np.nanstd(spec_autocorr_all, axis=0)
+    track_par[0] = int(np.around(track_par[0]))
+    track_par[4] = int(np.around(track_par[4]))
 
-# Fit <A_F> beyond art_len with a polynomial of order art_ord. The result will be later subtracted from <A_F>
-art_autocorr = np.zeros(spec_z.shape)
-if art_len > 0:
-  if art_ord == 1:
-    art_ord_lab = 'st'
-  if art_ord == 2:
-    art_ord_lab = 'nd'
-  if art_ord == 3:
-    art_ord_lab = 'rd'
+  if force_sign and track_sign:
+    print('# ERROR: can only use -force/--force-sign-change together with -notrack/--no-track-sign-change.'.format(noise_f))
+    sys.exit()
+
+  # Load the input FITS cube and, if requested, the FITS detection mask
+  print('# Loading FITS cube {0:s}'.format(cubef))
+  with fits.open(cubef) as f:
+      cube = f[0].data
+      if len(cube.shape) == 4 and cube.shape[0] == 1:
+        cube = cube[0]
+  if maskf:
+    print('# Loading FITS detection mask {0:s} as boolean array'.format(maskf))
+    with fits.open(maskf) as f:
+      msk = f[0].data.astype(bool)
+      if len(msk.shape) == 4 and msk.shape[0] == 1:
+        msk = msk[0]
   else:
-    art_ord_lab = 'th'
-  print('# Estimating autocorrelation Z caused by artefacts with a {0:d}{1:s} order polynomial fit to <A_F> beyond scale {2:d}'.format(art_ord, art_ord_lab, art_len))
-  art_coeffs = np.polyfit(spec_z[nr_chan//2+art_len:], spec_autocorr_mean[nr_chan//2+art_len:], art_ord, w=1./spec_autocorr_std[nr_chan//2+art_len:])[::-1]
-  for oo in range(art_coeffs.shape[0]):
-    art_autocorr[nr_chan//2:] += art_coeffs[oo] * spec_z[nr_chan//2:]**oo
-  art_autocorr[:nr_chan//2] = art_autocorr[nr_chan//2+1:][::-1]
-Z_label = '-Z' if art_len > 0 else ''
+    print('# WARNING: No FITS detection mask given. Will assume the cube is pure noise.')
+    msk = np.full(cube.shape, False, dtype=bool)
 
-# Calculate maximum autocorrelation length with coefficients significantly above zero (or above the artefacts fit)
-max_nonzero_autocorr = max(3,np.max(np.abs(np.where((spec_autocorr_mean - art_autocorr) > spec_autocorr_std)[0] - nr_chan//2)))
+  # Initialise a few things
+  if nr_spec <= cube.shape[1]*cube.shape[2]:
+    print('# Will extract {0:d} unique random spectra from the input cube ({1:d} available).'.format(nr_spec, cube.shape[1]*cube.shape[2]))
+  else:
+    print('# ERROR: You are requesting more spectra ({0:d}) than available in cube ({1:d}). Please change this with the -ns option.'.format(nr_spec, cube.shape[1]*cube.shape[2]))
+    sys.exit()
+  if nr_chan:
+    nr_chan = 2 * (nr_chan // 2) + 1
+    print('# Will take {0:d} channels per spectrum ({1:d} available).'.format(nr_chan, cube.shape[0]))
+    if cube.shape[0] < nr_chan:
+      nr_chan = 2 * ((cube.shape[0]-1) // 2) + 1
+      print('# WARNING: Number of channels per spectrum modified to {0:d} to fit within the spectral axis of the input cube.'.format(nr_chan))
+  else:
+    nr_chan = 2 * ((cube.shape[0]-1) // 2) + 1
+    print('# Will take {0:d} channels per spectrum ({1:d} available).'.format(nr_chan, cube.shape[0]))
+  spec_z = np.arange(-nr_chan//2+1,nr_chan//2+1)
+  spec_autocorr_all = np.zeros((nr_spec,nr_chan))
 
-# Compare mean autocorrelation to autocorrelation of requested kernels
-kernels, kern_autocorr, knames, deltas = {}, {}, [], []
-delta_tol = 3.
-if sinc or gauss or hann or box or binom:
-  print('# Comparing mean autocorrelation <A_F>{0:s} with autocorrelation A_K of known convolution kernels:'.format(Z_label))
-  print('#   delta calculated with the first {0:d} elements of <A_F>{1:s} after the peak'.format(2*max_nonzero_autocorr, Z_label))
-  if sinc:
-    for ss in sinc:
-      kernels['sinc-{0:.2f}'.format(ss)] = sinc_kern(spec_z, ss)
-  if gauss:
-    for gg in gauss:
-      kernels['gaussian-{0:.2f}'.format(gg)] = gauss_kern(spec_z, gg)
-  if hann:
-    for hh in hann:
-      if hh // 2 * 2 != hh:
-        kernels['hanning-{0:d}'.format(hh)] = hann_kern(spec_z, hh)
-  if box:
-    for bb in box:
-      if bb // 2 * 2 != bb:
-        kernels['boxcar-{0:d}'.format(bb)] = box_kern(spec_z, bb)
-  if binom:
-    for nn in binom:
-      if nn > 1 and nn // 2 * 2 != nn:
-        kernels['binomial-{0:d}'.format(nn)] = binomial_kern(spec_z, nn)
-  for kk in kernels:
-    kern_autocorr[kk] = autocorrelate_fft(kernels[kk])
-    knames.append(kk)
-    deltas.append(np.nanmean(((spec_autocorr_mean-art_autocorr)[nr_chan//2+1:nr_chan//2+2*max_nonzero_autocorr+1] - kern_autocorr[kk][nr_chan//2+1:nr_chan//2+2*max_nonzero_autocorr+1])**2 / spec_autocorr_std[nr_chan//2+1:nr_chan//2+2*max_nonzero_autocorr+1]**2))
-  knames, deltas = np.array(knames), np.array(deltas)
-  knames, deltas = knames[np.argsort(deltas)], deltas[np.argsort(deltas)]
-  print('#   {0:15s} {1:8s}   {2}'.format('kernel-name','delta', 'area'))
-  for kk in range(len(knames)):
-    if kk < 3 and deltas[kk] < delta_tol * deltas.min():
-      print('#   {0:15s} {1:8.2e}   {2:.2f}  (plotted)'.format(knames[kk], deltas[kk], kernels[knames[kk]].sum()))
+  # Extract random spectra from cube, with some constraints:
+  # - exclude spectra already extracted
+  # - exclude spectra included in the mask
+  # - exclude spectra with NaN's
+  print('# Extracting {0:d} unique random spectra F and calculating autocorrelation A_F.'.format(nr_spec))
+  ii, skipped = 0, 0
+  while ii < nr_spec:
+    if skipped > 10 * nr_spec:
+      print('ERROR: Cannot find enough unique random spectra sufficiently quickly. Try to lower your request with the -ns option.')
+      sys.exit()
+    x0 = np.random.randint(0,high=cube.shape[2])
+    y0 = np.random.randint(0,high=cube.shape[1])
+    z0 = np.random.randint(0,high=cube.shape[0]-nr_chan+1)
+    spec = cube[z0:z0+nr_chan,y0,x0]
+    if not msk[z0:z0+nr_chan,y0,x0].sum() and not np.isnan(spec).sum():
+      spec_autocorr_all[ii] = autocorrelate_fft(spec) # peak = 1 at centre of array
+      msk[z0:z0+nr_chan,y0,x0] = True
+      ii += 1
     else:
-      print('#   {0:15s} {1:8.2e}'.format(knames[kk], deltas[kk]))
-  # Select kernels to plot (delta within a factor of delta_tol of best delta, and no more than 3 kernels)
-  knames = knames[deltas < delta_tol * deltas.min()][:3]
+      skipped += 1
+  print('# Calculating mean autocorrelation <A_F>.')
+  spec_autocorr_mean = np.nanmean(spec_autocorr_all, axis=0)
+  spec_autocorr_std  = np.nanstd(spec_autocorr_all, axis=0)
+
+  # Fit <A_F> beyond art_len with a polynomial of order art_ord. The result will be later subtracted from <A_F>
+  art_autocorr = np.zeros(spec_z.shape)
+  if art_len > 0:
+    if art_ord == 1:
+      art_ord_lab = 'st'
+    if art_ord == 2:
+      art_ord_lab = 'nd'
+    if art_ord == 3:
+      art_ord_lab = 'rd'
+    else:
+      art_ord_lab = 'th'
+    print('# Estimating autocorrelation Z caused by artefacts with a {0:d}{1:s} order polynomial fit to <A_F> beyond scale {2:d}'.format(art_ord, art_ord_lab, art_len))
+    art_coeffs = np.polyfit(spec_z[nr_chan//2+art_len:], spec_autocorr_mean[nr_chan//2+art_len:], art_ord, w=1./spec_autocorr_std[nr_chan//2+art_len:])[::-1]
+    for oo in range(art_coeffs.shape[0]):
+      art_autocorr[nr_chan//2:] += art_coeffs[oo] * spec_z[nr_chan//2:]**oo
+    art_autocorr[:nr_chan//2] = art_autocorr[nr_chan//2+1:][::-1]
+  Z_label = '-Z' if art_len > 0 else ''
+
+  # Calculate maximum autocorrelation length with coefficients significantly above zero (or above the artefacts fit)
+  max_nonzero_autocorr = max(3,np.max(np.abs(np.where((spec_autocorr_mean - art_autocorr) > spec_autocorr_std)[0] - nr_chan//2)))
+
+  # Compare mean autocorrelation to autocorrelation of requested kernels
+  kernels, kern_autocorr, knames, deltas = {}, {}, [], []
+  delta_tol = 3.
+  if sinc or gauss or hann or box or binom:
+    print('# Comparing mean autocorrelation <A_F>{0:s} with autocorrelation A_K of known convolution kernels:'.format(Z_label))
+    print('#   delta calculated with the first {0:d} elements of <A_F>{1:s} after the peak'.format(2*max_nonzero_autocorr, Z_label))
+    if sinc:
+      for ss in sinc:
+        kernels['sinc-{0:.2f}'.format(ss)] = sinc_kern(spec_z, ss)
+    if gauss:
+      for gg in gauss:
+        kernels['gaussian-{0:.2f}'.format(gg)] = gauss_kern(spec_z, gg)
+    if hann:
+      for hh in hann:
+        if hh // 2 * 2 != hh:
+          kernels['hanning-{0:d}'.format(hh)] = hann_kern(spec_z, hh)
+    if box:
+      for bb in box:
+        if bb // 2 * 2 != bb:
+          kernels['boxcar-{0:d}'.format(bb)] = box_kern(spec_z, bb)
+    if binom:
+      for nn in binom:
+        if nn > 1 and nn // 2 * 2 != nn:
+          kernels['binomial-{0:d}'.format(nn)] = binomial_kern(spec_z, nn)
+    for kk in kernels:
+      kern_autocorr[kk] = autocorrelate_fft(kernels[kk])
+      knames.append(kk)
+      deltas.append(np.nanmean(((spec_autocorr_mean-art_autocorr)[nr_chan//2+1:nr_chan//2+2*max_nonzero_autocorr+1] - kern_autocorr[kk][nr_chan//2+1:nr_chan//2+2*max_nonzero_autocorr+1])**2 / spec_autocorr_std[nr_chan//2+1:nr_chan//2+2*max_nonzero_autocorr+1]**2))
+    knames, deltas = np.array(knames), np.array(deltas)
+    knames, deltas = knames[np.argsort(deltas)], deltas[np.argsort(deltas)]
+    print('#   {0:15s} {1:8s}   {2}'.format('kernel-name','delta', 'area'))
+    for kk in range(len(knames)):
+      if kk < 3 and deltas[kk] < delta_tol * deltas.min():
+        print('#   {0:15s} {1:8.2e}   {2:.2f}  (plotted)'.format(knames[kk], deltas[kk], kernels[knames[kk]].sum()))
+      else:
+        print('#   {0:15s} {1:8.2e}'.format(knames[kk], deltas[kk]))
+    # Select kernels to plot (delta within a factor of delta_tol of best delta, and no more than 3 kernels)
+    knames = knames[deltas < delta_tol * deltas.min()][:3]
 
 
-# Core calculation: from mean autocorrelation to kernel
-print('# Reconstructing spectral convolution kernel K from mean autocorrelation <A_F>{0:s}:'.format(Z_label))
-print('#   - FT(<A_F>{0:s})'.format(Z_label))
-rec_kernel_psd = np.real(np.fft.fft(np.fft.ifftshift(spec_autocorr_mean-art_autocorr))) # note that the kernel is reordered before taking its FT
-if noise_f != -1:
-  print('#   - remove noise floor from FT(<A_F>{0:s}) defined as {1:d}-th percentile'.format(Z_label, noise_f))
-  rec_kernel_psd -= np.percentile(rec_kernel_psd, noise_f) # remove noise floor
-rec_kernel_psd[rec_kernel_psd<0] = 0 # the power spectrum is >=0 by definition
-rec_kernel_fft = np.sqrt(rec_kernel_psd)
-rec_kernel_fft /= np.nanmax(np.abs(rec_kernel_fft))
-if track_sign or force_sign:
-  rec_kernel_fft_sign = track_ft_sign_smooth(rec_kernel_fft, track_par, inter_sign, force_sign, Z_label)
-print('#   - K = IFT{{+/- sqrt[FT(<A_F>{0:s})]}}'.format(Z_label))
-if track_sign or force_sign:
-  rec_kernel = np.real(np.fft.ifft(rec_kernel_fft_sign))
-else:
-  rec_kernel = np.real(np.fft.ifft(rec_kernel_fft))
-rec_kernel = np.fft.ifftshift(rec_kernel)
-rec_kernel /= np.nanmax(rec_kernel)
-rec_kernel = np.roll(rec_kernel, -1)
+  # Core calculation: from mean autocorrelation to kernel
+  print('# Reconstructing spectral convolution kernel K from mean autocorrelation <A_F>{0:s}:'.format(Z_label))
+  print('#   - FT(<A_F>{0:s})'.format(Z_label))
+  rec_kernel_psd = np.real(np.fft.fft(np.fft.ifftshift(spec_autocorr_mean-art_autocorr))) # note that the kernel is reordered before taking its FT
+  if noise_f != -1:
+    print('#   - remove noise floor from FT(<A_F>{0:s}) defined as {1:d}-th percentile'.format(Z_label, noise_f))
+    rec_kernel_psd -= np.percentile(rec_kernel_psd, noise_f) # remove noise floor
+  rec_kernel_psd[rec_kernel_psd<0] = 0 # the power spectrum is >=0 by definition
+  rec_kernel_fft = np.sqrt(rec_kernel_psd)
+  rec_kernel_fft /= np.nanmax(np.abs(rec_kernel_fft))
+  if track_sign or force_sign:
+    rec_kernel_fft_sign = track_ft_sign_smooth(rec_kernel_fft, track_par, inter_sign, force_sign, Z_label)
+  print('#   - K = IFT{{+/- sqrt[FT(<A_F>{0:s})]}}'.format(Z_label))
+  if track_sign or force_sign:
+    rec_kernel = np.real(np.fft.ifft(rec_kernel_fft_sign))
+  else:
+    rec_kernel = np.real(np.fft.ifft(rec_kernel_fft))
+  rec_kernel = np.fft.ifftshift(rec_kernel)
+  rec_kernel /= np.nanmax(rec_kernel)
+  rec_kernel = np.roll(rec_kernel, -1)
 
-# Find asymptotic area
-rec_area = np.array([rec_kernel[nr_chan//2-aa:nr_chan//2+aa+1].sum() for aa in range(nr_chan//2)])
-ii_area = max(9,nr_chan//20)
-rec_area_std = np.median(np.abs(rec_area[-ii_area:] - np.median(rec_area[-ii_area:])))
-while ii_area < nr_chan and np.median(np.abs(rec_area[-ii_area:] - np.median(rec_area[-ii_area:]))) < 1.1 * rec_area_std:
-  ii_area += 1
-ii_area -= 1
-rec_area_std = np.median(np.abs(rec_area[-ii_area:] - np.median(rec_area[-ii_area:])))
-rec_area_med = np.median(rec_area[-ii_area:])
-print('# Kernel area = integral(K/K_max) = {0:.2f} channels (best guess of asymptotic value = median of last {1:d} channels).'.format(rec_area_med, ii_area))
+  # Find asymptotic area
+  rec_area = np.array([rec_kernel[nr_chan//2-aa:nr_chan//2+aa+1].sum() for aa in range(nr_chan//2)])
+  ii_area = max(9,nr_chan//20)
+  rec_area_std = np.median(np.abs(rec_area[-ii_area:] - np.median(rec_area[-ii_area:])))
+  while ii_area < nr_chan and np.median(np.abs(rec_area[-ii_area:] - np.median(rec_area[-ii_area:]))) < 1.1 * rec_area_std:
+    ii_area += 1
+  ii_area -= 1
+  rec_area_std = np.median(np.abs(rec_area[-ii_area:] - np.median(rec_area[-ii_area:])))
+  rec_area_med = np.median(rec_area[-ii_area:])
+  print('# Kernel area = integral(K/K_max) = {0:.2f} channels (best guess of asymptotic value = median of last {1:d} channels).'.format(rec_area_med, ii_area))
 
-# Additional variables for plotting
-spec_autocorr_p16  = np.nanpercentile(spec_autocorr_all, 16, axis=0)
-spec_autocorr_p84  = np.nanpercentile(spec_autocorr_all, 84, axis=0)
-kcolors = ['orange', 'green', 'blue']
+  # Additional variables for plotting
+  spec_autocorr_p16  = np.nanpercentile(spec_autocorr_all, 16, axis=0)
+  spec_autocorr_p84  = np.nanpercentile(spec_autocorr_all, 84, axis=0)
+  kcolors = ['orange', 'green', 'blue']
 
-# Plotting
-fig = plt.figure(figsize=(9,8))
-gs = fig.add_gridspec(3, 2, height_ratios=[1,1,1])
-ax0 = plt.subplot(gs[0,:])
-ax1 = plt.subplot(gs[1,0])
-ax2 = plt.subplot(gs[1,1])
-ax3 = plt.subplot(gs[2,0])
-ax4 = plt.subplot(gs[2,1])
+  # Plotting
+  fig = plt.figure(figsize=(9,8))
+  gs = fig.add_gridspec(3, 2, height_ratios=[1,1,1])
+  ax0 = plt.subplot(gs[0,:])
+  ax1 = plt.subplot(gs[1,0])
+  ax2 = plt.subplot(gs[1,1])
+  ax3 = plt.subplot(gs[2,0])
+  ax4 = plt.subplot(gs[2,1])
 
-ax0.plot(spec_z, spec_autocorr_mean, 'k-', ds='steps-mid', label='$\\langle A_F \\rangle $ from {0:d} spectra'.format(nr_spec), lw=3)
-ax0.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ - $84^\\mathrm{th}$ perc.')
-if art_len > 0:
-  ax0.plot(spec_z, art_autocorr, 'r--', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
-ax0.axhline(y=0, color='k', ls=':')
-ax0.legend(fontsize=legend_font_size, ncols=3)
-ax0.set_xlim(0,nr_chan//2)
-ax0.set_ylim(np.nanmin(spec_autocorr_p16[nr_chan//2+2*max_nonzero_autocorr:]), np.nanmax(spec_autocorr_p84[nr_chan//2+2*max_nonzero_autocorr:]))
-ax0.set_xlabel('$\\Delta$ channel')
-ax0.set_ylabel('$A$')
+  ax0.plot(spec_z, spec_autocorr_mean, 'k-', ds='steps-mid', label='$\\langle A_F \\rangle $ from {0:d} spectra'.format(nr_spec), lw=3)
+  ax0.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ - $84^\\mathrm{th}$ perc.')
+  if art_len > 0:
+    ax0.plot(spec_z, art_autocorr, 'r--', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
+  ax0.axhline(y=0, color='k', ls=':')
+  ax0.legend(fontsize=legend_font_size, ncols=3)
+  ax0.set_xlim(0,nr_chan//2)
+  ax0.set_ylim(np.nanmin(spec_autocorr_p16[nr_chan//2+2*max_nonzero_autocorr:]), np.nanmax(spec_autocorr_p84[nr_chan//2+2*max_nonzero_autocorr:]))
+  ax0.set_xlabel('$\\Delta$ channel')
+  ax0.set_ylabel('$A$')
 
-ax1.plot(spec_z, spec_autocorr_mean, 'k-', ds='steps-mid', label='$\\langle A_F \\rangle $ from {0:d} spectra'.format(nr_spec), lw=3)
-ax1.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ - $84^\\mathrm{th}$ perc.')
-if art_len > 0:
-  ax1.plot(spec_z, art_autocorr, 'r--', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
-ax1.axhline(y=0, color='k', ls=':')
-colind = 0
-for kk in knames:
-  ax1.plot(spec_z, kern_autocorr[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$A_K$({0:s})'.format(kk))
-  colind += 1
-ax1.legend(fontsize=legend_font_size)
-ax1.set_xlim(0, 5*max_nonzero_autocorr)
-ax1.set_xlabel('$\\Delta$ channel')
-ax1.set_ylabel('$A$')
+  ax1.plot(spec_z, spec_autocorr_mean, 'k-', ds='steps-mid', label='$\\langle A_F \\rangle $ from {0:d} spectra'.format(nr_spec), lw=3)
+  ax1.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ - $84^\\mathrm{th}$ perc.')
+  if art_len > 0:
+    ax1.plot(spec_z, art_autocorr, 'r--', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
+  ax1.axhline(y=0, color='k', ls=':')
+  colind = 0
+  for kk in knames:
+    ax1.plot(spec_z, kern_autocorr[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$A_K$({0:s})'.format(kk))
+    colind += 1
+  ax1.legend(fontsize=legend_font_size)
+  ax1.set_xlim(0, 5*max_nonzero_autocorr)
+  ax1.set_xlabel('$\\Delta$ channel')
+  ax1.set_ylabel('$A$')
 
-if art_len > 0:
-  lab2_1 = '$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }$'
-  lab2_2 = '$\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z })$'
-else:
-  lab2_1 = '$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$'
-  lab2_2 = '$\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$'
-if track_sign or force_sign:
-  ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=8, alpha=0.3, label=lab2_1)
-  ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft_sign)), 'k-', ds='steps-mid', lw=3, alpha=1, label=lab2_2)
-else:
-  ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=3, alpha=1, label=lab2_1)
-ax2.axhline(y=0, color='k', ls=':')
-ax2.legend(fontsize=legend_font_size)
-ax2.set_xlim(0,nr_chan//2)
-ax2.set_xlabel('conjugate channel')
-ax2.set_ylabel('$\\mathcal{F}K$')
+  if art_len > 0:
+    lab2_1 = '$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }$'
+    lab2_2 = '$\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z })$'
+  else:
+    lab2_1 = '$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$'
+    lab2_2 = '$\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$'
+  if track_sign or force_sign:
+    ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=8, alpha=0.3, label=lab2_1)
+    ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft_sign)), 'k-', ds='steps-mid', lw=3, alpha=1, label=lab2_2)
+  else:
+    ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=3, alpha=1, label=lab2_1)
+  ax2.axhline(y=0, color='k', ls=':')
+  ax2.legend(fontsize=legend_font_size)
+  ax2.set_xlim(0,nr_chan//2)
+  ax2.set_xlabel('conjugate channel')
+  ax2.set_ylabel('$\\mathcal{F}K$')
 
-if art_len > 0:
-  lab3_1 = '$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z })$'
-  lab3_2 = '$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }$'
-else:
-  lab3_1 = '$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$'
-  lab3_2 = '$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$'
-if track_sign or force_sign:
-  ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label=lab3_1)
-else:
-  ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label=lab3_2)
-ax3.axhline(y=0, color='k', ls=':')
-colind = 0
-for kk in knames:
-  ax3.plot(spec_z, kernels[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$K$({0:s})'.format(kk))
-  colind += 1
-ax3.legend(fontsize=legend_font_size)
-ax3.set_xlim(0, 5*max_nonzero_autocorr)
-ax3.set_xlabel('channel')
-ax3.set_ylabel('$K$')
+  if art_len > 0:
+    lab3_1 = '$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z })$'
+    lab3_2 = '$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }$'
+  else:
+    lab3_1 = '$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$'
+    lab3_2 = '$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$'
+  if track_sign or force_sign:
+    ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label=lab3_1)
+  else:
+    ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label=lab3_2)
+  ax3.axhline(y=0, color='k', ls=':')
+  colind = 0
+  for kk in knames:
+    ax3.plot(spec_z, kernels[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$K$({0:s})'.format(kk))
+    colind += 1
+  ax3.legend(fontsize=legend_font_size)
+  ax3.set_xlim(0, 5*max_nonzero_autocorr)
+  ax3.set_xlabel('channel')
+  ax3.set_ylabel('$K$')
 
-ax4.plot(np.arange(nr_chan//2), rec_area, 'k-', ds='steps-post', alpha=0.3, lw=3)
-ax4.plot(np.arange(nr_chan//2-ii_area,nr_chan//2), rec_area[-ii_area:], 'k-', ds='steps-post', alpha=1, lw=3)
-ax4.plot([nr_chan//2-ii_area, nr_chan//2-ii_area], [0.9 * rec_area_med, 1.1 * rec_area_med], 'k:')
-ax4.axhline(y=rec_area_med, color='k', ls=':', label='$\\int{{ K / K_\\mathrm{{max}}}} \\to$ {0:.2f} channels'.format(rec_area_med))
-ax4.legend(fontsize=legend_font_size)
-ax4.set_xlim(0,nr_chan//2)
-ax4.set_ylim(0,1.1*rec_area.max())
-ax4.set_xlabel('channel')
-ax4.set_ylabel('cumul. $\\int{K / K_\\mathrm{max}}$')
+  ax4.plot(np.arange(nr_chan//2), rec_area, 'k-', ds='steps-post', alpha=0.3, lw=3)
+  ax4.plot(np.arange(nr_chan//2-ii_area,nr_chan//2), rec_area[-ii_area:], 'k-', ds='steps-post', alpha=1, lw=3)
+  ax4.plot([nr_chan//2-ii_area, nr_chan//2-ii_area], [0.9 * rec_area_med, 1.1 * rec_area_med], 'k:')
+  ax4.axhline(y=rec_area_med, color='k', ls=':', label='$\\int{{ K / K_\\mathrm{{max}}}} \\to$ {0:.2f} channels'.format(rec_area_med))
+  ax4.legend(fontsize=legend_font_size)
+  ax4.set_xlim(0,nr_chan//2)
+  ax4.set_ylim(0,1.1*rec_area.max())
+  ax4.set_xlabel('channel')
+  ax4.set_ylabel('cumul. $\\int{K / K_\\mathrm{max}}$')
 
-plt.tight_layout()
-if output:
-  plt.savefig(output)
-else:
-  plt.show()
+  plt.tight_layout()
+  if output:
+    plt.savefig(output)
+  else:
+    plt.show()
+
+# Run the program is called from command line
+if __name__ == "__main__":  
+  main()
