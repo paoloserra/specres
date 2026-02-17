@@ -283,9 +283,7 @@ def track_ft_sign_smooth(x, track_sign_par, inter_sign_change, pos_sign_change, 
 
 
 def main():
-  plt.rcParams['text.usetex'] = True
-  plt.rcParams.update({'font.size': 16})
-  legend_font_size = 10
+
 
   # Read settings from command line
   args       = create_parser().parse_args([a for a in sys.argv[1:]])
@@ -307,6 +305,10 @@ def main():
   track_par  = args.track_sign_change_params
   force_sign = args.force_sign_change
   inter_sign = args.interp_sign_change
+
+  plt.rcParams['text.usetex'] = True
+  plt.rcParams.update({'font.size': 16})
+  legend_font_size = 10
 
   # Check that the settings are valid
   if noise_f < -1 or noise_f > 100:
