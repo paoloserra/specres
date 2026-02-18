@@ -502,25 +502,27 @@ def main():
   ax3 = plt.subplot(gs[2,0])
   ax4 = plt.subplot(gs[2,1])
 
+  ax0.axhline(y=0, color='k', ls=':')
   ax0.plot(spec_z, spec_autocorr_mean, 'k-', ds='steps-mid', label='$\\langle A_F \\rangle $ from {0:d} spectra'.format(nr_spec), lw=3)
   ax0.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ - $84^\\mathrm{th}$ perc.')
   ymin, ymax = np.nanmin(spec_autocorr_p16[nr_chan//2+2*max_nonzero_autocorr:]), np.nanmax(spec_autocorr_p84[nr_chan//2+2*max_nonzero_autocorr:])
   if art_len > 0:
-    ax0.plot(spec_z, art_autocorr, 'r--', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
+    ax0.plot(spec_z[nr_chan//2+art_len:], art_autocorr[nr_chan//2+art_len:], 'r-', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
+    ax0.plot(spec_z[:nr_chan//2+art_len+1], art_autocorr[:nr_chan//2+art_len+1], 'r--', lw=1)
     ax0.plot([art_len, art_len], [art_autocorr[nr_chan//2+art_len] - 0.1*(ymax-ymin), art_autocorr[nr_chan//2+art_len] + 0.1*(ymax-ymin)], 'r--', lw=1)
-  ax0.axhline(y=0, color='k', ls=':')
   ax0.legend(fontsize=legend_font_size, ncols=3)
   ax0.set_xlim(0,nr_chan//2)
   ax0.set_ylim(ymin, ymax)
   ax0.set_xlabel('$\\Delta$ channel')
   ax0.set_ylabel('$A$')
 
+  ax1.axhline(y=0, color='k', ls=':')
   ax1.plot(spec_z, spec_autocorr_mean, 'k-', ds='steps-mid', label='$\\langle A_F \\rangle $ from {0:d} spectra'.format(nr_spec), lw=3)
   ax1.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ - $84^\\mathrm{th}$ perc.')
   if art_len > 0:
-    ax1.plot(spec_z, art_autocorr, 'r--', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
+    ax1.plot(spec_z[nr_chan//2+art_len:], art_autocorr[nr_chan//2+art_len:], 'r-', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
+    ax1.plot(spec_z[:nr_chan//2+art_len+1], art_autocorr[:nr_chan//2+art_len+1], 'r--', lw=1)
     ax1.plot([art_len, art_len], [art_autocorr[nr_chan//2+art_len] - 0.1, art_autocorr[nr_chan//2+art_len] + 0.1], 'r--', lw=1)
-  ax1.axhline(y=0, color='k', ls=':')
   colind = 0
   for kk in knames:
     ax1.plot(spec_z, kern_autocorr[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$A_K$({0:s})'.format(kk))
@@ -530,6 +532,7 @@ def main():
   ax1.set_xlabel('$\\Delta$ channel')
   ax1.set_ylabel('$A$')
 
+  ax2.axhline(y=0, color='k', ls=':')
   if art_len > 0:
     lab2_1 = '$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }$'
     lab2_2 = '$\\Lambda\\left(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }\\right)$'
@@ -541,12 +544,12 @@ def main():
     ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft_sign)), 'k-', ds='steps-mid', lw=3, alpha=1, label=lab2_2)
   else:
     ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=3, alpha=1, label=lab2_1)
-  ax2.axhline(y=0, color='k', ls=':')
   ax2.legend(fontsize=legend_font_size)
   ax2.set_xlim(0,nr_chan//2)
   ax2.set_xlabel('conjugate channel')
   ax2.set_ylabel('$\\mathcal{F}K$')
 
+  ax3.axhline(y=0, color='k', ls=':')
   if art_len > 0:
     lab3_1 = '$\\mathcal{F}^{-1}\\Lambda\\left(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }\\right)$'
     lab3_2 = '$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }$'
@@ -557,7 +560,6 @@ def main():
     ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label=lab3_1)
   else:
     ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label=lab3_2)
-  ax3.axhline(y=0, color='k', ls=':')
   colind = 0
   for kk in knames:
     ax3.plot(spec_z, kernels[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$K$({0:s})'.format(kk))
