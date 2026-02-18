@@ -3,6 +3,7 @@ import numpy as np
 import argparse, sys
 from astropy.io import fits
 from matplotlib import pyplot as plt
+import shutil
 
 # Define functions
 
@@ -306,7 +307,8 @@ def main():
   force_sign = args.force_sign_change
   inter_sign = args.interp_sign_change
 
-  plt.rcParams['text.usetex'] = True
+  
+  plt.rcParams['text.usetex']= True if shutil.which('latex') else False
   plt.rcParams.update({'font.size': 16})
   legend_font_size = 10
 
@@ -476,7 +478,7 @@ def main():
   rec_area = np.array([rec_kernel[nr_chan//2-aa:nr_chan//2+aa+1].sum() for aa in range(nr_chan//2)])
   ii_area = max(9,nr_chan//20)
   rec_area_std = np.median(np.abs(rec_area[-ii_area:] - np.median(rec_area[-ii_area:])))
-  while ii_area < nr_chan and np.median(np.abs(rec_area[-ii_area:] - np.median(rec_area[-ii_area:]))) < 1.1 * rec_area_std:
+  while ii_area <= nr_chan//2 and np.median(np.abs(rec_area[-ii_area:] - np.median(rec_area[-ii_area:]))) < 1.1 * rec_area_std:
     ii_area += 1
   ii_area -= 1
   rec_area_std = np.median(np.abs(rec_area[-ii_area:] - np.median(rec_area[-ii_area:])))
