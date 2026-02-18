@@ -412,8 +412,12 @@ def main():
 
   # Calculate maximum autocorrelation length with coefficients significantly above zero (or above the artefacts fit)
   max_nonzero_autocorr = max(3,np.max(np.abs(np.where((spec_autocorr_mean - art_autocorr) > spec_autocorr_std)[0] - nr_chan//2)))
-
+  # If this leads to selecting too many autocorrelations then raise an error.
+  if nr_chan//2+2*max_nonzero_autocorr > nr_chan:
+    raise RuntimeError('# ERROR: Your maximum autocorralation length is {0:d} channels, leads to selecting {1:d} autocorrelations which is higher than the maximum allowed by the number of channels per spectrum ({2:d}). Please lower -artlen in your call.'.format(max_nonzero_autocorr,nr_chan//2+2*max_nonzero_autocorr, nr_chan,))
+    
   # Compare mean autocorrelation to autocorrelation of requested kernels
+  
   kernels, kern_autocorr, knames, deltas = {}, {}, [], []
   delta_tol = 3.
   if sinc or gauss or hann or box or binom:
@@ -506,6 +510,7 @@ def main():
   ax0.axhline(y=0, color='k', ls=':')
   ax0.legend(fontsize=legend_font_size, ncols=3)
   ax0.set_xlim(0,nr_chan//2)
+  
   ax0.set_ylim(np.nanmin(spec_autocorr_p16[nr_chan//2+2*max_nonzero_autocorr:]), np.nanmax(spec_autocorr_p84[nr_chan//2+2*max_nonzero_autocorr:]))
   ax0.set_xlabel('$\\Delta$ channel')
   ax0.set_ylabel('$A$')
