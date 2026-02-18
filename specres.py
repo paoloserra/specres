@@ -417,7 +417,6 @@ def main():
     raise RuntimeError('# ERROR: Your maximum autocorralation length is {0:d} channels, leads to selecting {1:d} autocorrelations which is higher than the maximum allowed by the number of channels per spectrum ({2:d}). Please lower -artlen in your call.'.format(max_nonzero_autocorr,nr_chan//2+2*max_nonzero_autocorr, nr_chan,))
     
   # Compare mean autocorrelation to autocorrelation of requested kernels
-  
   kernels, kern_autocorr, knames, deltas = {}, {}, [], []
   delta_tol = 3.
   if sinc or gauss or hann or box or binom:
@@ -505,13 +504,14 @@ def main():
 
   ax0.plot(spec_z, spec_autocorr_mean, 'k-', ds='steps-mid', label='$\\langle A_F \\rangle $ from {0:d} spectra'.format(nr_spec), lw=3)
   ax0.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ - $84^\\mathrm{th}$ perc.')
+  ymin, ymax = np.nanmin(spec_autocorr_p16[nr_chan//2+2*max_nonzero_autocorr:]), np.nanmax(spec_autocorr_p84[nr_chan//2+2*max_nonzero_autocorr:])
   if art_len > 0:
     ax0.plot(spec_z, art_autocorr, 'r--', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
+    ax0.plot([art_len, art_len], [art_autocorr[nr_chan//2+art_len] - 0.1*(ymax-ymin), art_autocorr[nr_chan//2+art_len] + 0.1*(ymax-ymin)], 'r--', lw=1)
   ax0.axhline(y=0, color='k', ls=':')
   ax0.legend(fontsize=legend_font_size, ncols=3)
   ax0.set_xlim(0,nr_chan//2)
-  
-  ax0.set_ylim(np.nanmin(spec_autocorr_p16[nr_chan//2+2*max_nonzero_autocorr:]), np.nanmax(spec_autocorr_p84[nr_chan//2+2*max_nonzero_autocorr:]))
+  ax0.set_ylim(ymin, ymax)
   ax0.set_xlabel('$\\Delta$ channel')
   ax0.set_ylabel('$A$')
 
@@ -519,13 +519,14 @@ def main():
   ax1.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ - $84^\\mathrm{th}$ perc.')
   if art_len > 0:
     ax1.plot(spec_z, art_autocorr, 'r--', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
+    ax1.plot([art_len, art_len], [art_autocorr[nr_chan//2+art_len] - 0.1, art_autocorr[nr_chan//2+art_len] + 0.1], 'r--', lw=1)
   ax1.axhline(y=0, color='k', ls=':')
   colind = 0
   for kk in knames:
     ax1.plot(spec_z, kern_autocorr[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$A_K$({0:s})'.format(kk))
     colind += 1
   ax1.legend(fontsize=legend_font_size)
-  ax1.set_xlim(0, 5*max_nonzero_autocorr)
+  ax1.set_xlim(0, 3*max_nonzero_autocorr)
   ax1.set_xlabel('$\\Delta$ channel')
   ax1.set_ylabel('$A$')
 
@@ -562,7 +563,7 @@ def main():
     ax3.plot(spec_z, kernels[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$K$({0:s})'.format(kk))
     colind += 1
   ax3.legend(fontsize=legend_font_size)
-  ax3.set_xlim(0, 5*max_nonzero_autocorr)
+  ax3.set_xlim(0, 3*max_nonzero_autocorr)
   ax3.set_xlabel('channel')
   ax3.set_ylabel('$K$')
 
