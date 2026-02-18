@@ -531,10 +531,10 @@ def main():
 
   if art_len > 0:
     lab2_1 = '$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }$'
-    lab2_2 = '$\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z })$'
+    lab2_2 = '$\\Lambda\\left(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }\\right)$'
   else:
     lab2_1 = '$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$'
-    lab2_2 = '$\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$'
+    lab2_2 = '$\\Lambda\\left(\\sqrt{\\mathcal{F}\\langle A_F\\rangle }\\right)$'
   if track_sign or force_sign:
     ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft)), 'k-', ds='steps-mid', lw=8, alpha=0.3, label=lab2_1)
     ax2.plot(spec_z, np.real(np.fft.fftshift(rec_kernel_fft_sign)), 'k-', ds='steps-mid', lw=3, alpha=1, label=lab2_2)
@@ -547,10 +547,10 @@ def main():
   ax2.set_ylabel('$\\mathcal{F}K$')
 
   if art_len > 0:
-    lab3_1 = '$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z })$'
+    lab3_1 = '$\\mathcal{F}^{-1}\\Lambda\\left(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }\\right)$'
     lab3_2 = '$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }$'
   else:
-    lab3_1 = '$\\mathcal{F}^{-1}\\Lambda(\\sqrt{\\mathcal{F}\\langle A_F\\rangle })$'
+    lab3_1 = '$\\mathcal{F}^{-1}\\Lambda\\left(\\sqrt{\\mathcal{F}\\langle A_F\\rangle }\\right)$'
     lab3_2 = '$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$'
   if track_sign or force_sign:
     ax3.plot(spec_z, rec_kernel, 'k-', ds='steps-mid', alpha=1, lw=3, label=lab3_1)
