@@ -526,7 +526,7 @@ def main():
     ax1.plot(spec_z, kern_autocorr[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$A_K$({0:s})'.format(kk))
     colind += 1
   ax1.legend(fontsize=legend_font_size)
-  ax1.set_xlim(0, 3*max_nonzero_autocorr)
+  ax1.set_xlim(0, min(nr_chan//2,3*max_nonzero_autocorr))
   ax1.set_xlabel('$\\Delta$ channel')
   ax1.set_ylabel('$A$')
 
@@ -563,7 +563,7 @@ def main():
     ax3.plot(spec_z, kernels[kk], c=kcolors[colind], marker='o', ls='', alpha=0.5, label='$K$({0:s})'.format(kk))
     colind += 1
   ax3.legend(fontsize=legend_font_size)
-  ax3.set_xlim(0, 3*max_nonzero_autocorr)
+  ax3.set_xlim(0, min(nr_chan//2,3*max_nonzero_autocorr))
   ax3.set_xlabel('channel')
   ax3.set_ylabel('$K$')
 
