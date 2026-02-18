@@ -412,9 +412,6 @@ def main():
 
   # Calculate maximum autocorrelation length with coefficients significantly above zero (or above the artefacts fit)
   max_nonzero_autocorr = max(3,np.max(np.abs(np.where((spec_autocorr_mean - art_autocorr) > spec_autocorr_std)[0] - nr_chan//2)))
-  # If this leads to selecting too many autocorrelations then raise an error.
-  if nr_chan//2+2*max_nonzero_autocorr > nr_chan:
-    raise RuntimeError('# ERROR: Your maximum autocorralation length is {0:d} channels, leads to selecting {1:d} autocorrelations which is higher than the maximum allowed by the number of channels per spectrum ({2:d}). Please lower -artlen in your call.'.format(max_nonzero_autocorr,nr_chan//2+2*max_nonzero_autocorr, nr_chan,))
     
   # Compare mean autocorrelation to autocorrelation of requested kernels
   kernels, kern_autocorr, knames, deltas = {}, {}, [], []
@@ -505,7 +502,8 @@ def main():
   ax0.axhline(y=0, color='k', ls=':')
   ax0.plot(spec_z, spec_autocorr_mean, 'k-', ds='steps-mid', label='$\\langle A_F \\rangle $ from {0:d} spectra'.format(nr_spec), lw=3)
   ax0.fill_between(spec_z, spec_autocorr_p16, spec_autocorr_p84, color='k', alpha=0.3, step='mid', label='$16^\\mathrm{th}$ - $84^\\mathrm{th}$ perc.')
-  ymin, ymax = np.nanmin(spec_autocorr_p16[nr_chan//2+2*max_nonzero_autocorr:]), np.nanmax(spec_autocorr_p84[nr_chan//2+2*max_nonzero_autocorr:])
+  ymin = np.nanmin(spec_autocorr_p16[nr_chan//2+min(nr_chan//2,2*max_nonzero_autocorr):])
+  ymax = np.nanmax(spec_autocorr_p84[nr_chan//2+min(nr_chan//2,2*max_nonzero_autocorr):])
   if art_len > 0:
     ax0.plot(spec_z[nr_chan//2+art_len:], art_autocorr[nr_chan//2+art_len:], 'r-', label='$Z$ = artefacts (order {0:d})'.format(art_ord), lw=1)
     ax0.plot(spec_z[:nr_chan//2+art_len+1], art_autocorr[:nr_chan//2+art_len+1], 'r--', lw=1)
