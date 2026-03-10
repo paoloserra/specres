@@ -48,7 +48,7 @@ def create_parser():
                  help="*** ADVANCED OPTION ***"
                  " Polynomial order used when fitting <A_F> beyond the length set by"
                  " -artlen in order to model the autocorrelation caused by artefacts."
-                 " Default - 2.")
+                 " Default = 2.")
   p.add_argument("-notrack", "--no-track-sign-change", action="store_true",
                  help="*** ADVANCED OPTION ***"
                  " Skip the sign tracking of +/- sqrt[FT(<A_F>)]. This means always taking"

@@ -51,7 +51,7 @@ optional advanced arguments:
                         *** ADVANCED OPTION *** Autocorrelation coefficients from this length on are assumed to be due to artefacts (e.g., from continuum subtraction). We fit them with a polynomial of order
                         set by -artord, and subtract the result from <A_F> before calculating K. Default = 0 (or any value < 0) means that the data cube is assumed to have no artefatcs.
   -artord ARTEFACTS_AUTOCORR_ORDER, --artefacts-autocorr-order ARTEFACTS_AUTOCORR_ORDER
-                        *** ADVANCED OPTION *** Polynomial order used when fitting <A_F> beyond the length set by -artlen in order to model the autocorrelation caused by artefacts. Default - 2.
+                        *** ADVANCED OPTION *** Polynomial order used when fitting <A_F> beyond the length set by -artlen in order to model the autocorrelation caused by artefacts. Default = 2.
   -notrack, --no-track-sign-change
                         *** ADVANCED OPTION *** Skip the sign tracking of +/- sqrt[FT(<A_F>)]. This means always taking the + sign unless the user forces the sign change at specific points with -force.
   -trackpar TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS, --track-sign-change-params TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS TRACK_SIGN_CHANGE_PARAMS
