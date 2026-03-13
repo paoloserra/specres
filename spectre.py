@@ -338,8 +338,15 @@ def main():
   print('# Loading FITS cube {0:s}'.format(cubef))
   with fits.open(cubef) as f:
       cube = f[0].data
-      if len(cube.shape) == 4 and cube.shape[0] == 1:
-        cube = cube[0]
+      if len(cube.shape) == 4:
+        if cube.shape[0] == 1:
+          cube = cube[0]
+        else:
+          print('# ERROR: The input .FITS is not a cube. It has 4 non-trivial axes. Cannot proceed.')
+          sys.exit()
+      elif len(cube.shape) == 2:
+        print('# ERROR: The input .FITS is not a cube. It only has 2 axes. Cannot proceed.')
+        sys.exit()
   if maskf:
     print('# Loading FITS detection mask {0:s} as boolean array'.format(maskf))
     with fits.open(maskf) as f:
