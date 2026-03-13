@@ -95,9 +95,9 @@ def create_parser():
                  " Default = 10.")
   p.add_argument("-floor", "--noise-floor", type=int, default=-1,
                  help="*** ADVANCED OPTION ***"
-                 " Calculate the noise floor of FT(<A_F>) as the selected percentile"
-                 " (0 to 100), and subtract it before reconstructing the kernel K."
-                 " Default = -1 = no noise floor removal.")
+                 " Calculate the noise floor of +sqrt[FT(<A_F>)] as the selected percentile"
+                 " (0 to 100), and subtract it before tracking sign changes and"
+                 " reconstructing the kernel K. Default = -1 = no noise floor removal.")
   return(p)
 
 # make a spectrum symmetric about mid point
@@ -464,11 +464,11 @@ def main():
   print('# Reconstructing spectral convolution kernel K from mean autocorrelation <A_F>{0:s}:'.format(Z_label))
   print('#   - FT(<A_F>{0:s})'.format(Z_label))
   rec_kernel_psd = np.real(np.fft.fft(np.fft.ifftshift(spec_autocorr_mean-art_autocorr))) # note that the kernel is reordered before taking its FT
-  if noise_f != -1:
-    print('#   - remove noise floor from FT(<A_F>{0:s}) defined as {1:d}-th percentile'.format(Z_label, noise_f))
-    rec_kernel_psd -= np.percentile(rec_kernel_psd, noise_f) # remove noise floor
   rec_kernel_psd[rec_kernel_psd<0] = 0 # the power spectrum is >=0 by definition
   rec_kernel_fft = np.sqrt(rec_kernel_psd)
+  if noise_f != -1:
+    print('#   - remove noise floor from +sqrt[FT(<A_F>{0:s})] defined as {1:d}-th percentile'.format(Z_label, noise_f))
+    rec_kernel_fft -= np.percentile(rec_kernel_fft, noise_f) # remove noise floor
   rec_kernel_fft /= np.nanmax(np.abs(rec_kernel_fft))
   if track_sign or force_sign:
     rec_kernel_fft_sign = track_ft_sign_smooth(rec_kernel_fft, track_par, inter_sign, force_sign, Z_label)

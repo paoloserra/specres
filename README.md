@@ -46,7 +46,7 @@ optional arguments:
   -bin BINOMIAL_KERNEL [BINOMIAL_KERNEL ...], --binomial-kernel BINOMIAL_KERNEL [BINOMIAL_KERNEL ...]
                         Space-separated list of widths for comparison Binomial kernels. Only odd numbers > 1 will be considered.
 
-optional advanced arguments:
+optional advanced arguments to be used with caution:
   -artlen ARTEFACTS_AUTOCORR_LENGTH, --artefacts-autocorr-length ARTEFACTS_AUTOCORR_LENGTH
                         *** ADVANCED OPTION *** Autocorrelation coefficients from this length on are assumed to be due to artefacts (e.g., from continuum subtraction). We fit them with a polynomial of order
                         set by -artord, and subtract the result from <A_F> before calculating K. Default = 0 (or any value < 0) means that the data cube is assumed to have no artefatcs.
@@ -71,6 +71,6 @@ optional advanced arguments:
                         on either side of the point. Default = 10. Set to 0 for no interpolation. 2) Order of the fit. Default = 2. 3) Number of points to be excluded from the interpolation on either side
                         of the point. If > 0, the above number of points included in the interpolation does not change, and the points included move outward. Default = 10.
   -floor NOISE_FLOOR, --noise-floor NOISE_FLOOR
-                        *** ADVANCED OPTION *** Calculate the noise floor of FT(<A_F>) as the selected percentile (0 to 100), and subtract it before reconstructing the kernel K. Default = -1 = no noise
-                        floor removal.
+                        *** ADVANCED OPTION *** Calculate the noise floor of +sqrt[FT(<A_F>)] as the selected percentile (0 to 100), and subtract it before tracking sign changes and reconstructing the
+                        kernel K. Default = -1 = no noise floor removal.
 ```
