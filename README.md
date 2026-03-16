@@ -14,7 +14,7 @@ The script does the following:
 
 The output image looks something like this:
 
-![Image](exampleplot.png)
+![Image](example.png)
 
 
 ```

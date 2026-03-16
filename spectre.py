@@ -405,7 +405,9 @@ def main():
   ii, skipped = 0, 0
   while ii < nr_spec:
     if skipped > 10 * nr_spec:
-      print('ERROR: Cannot find {0:d} unique random spectra with NaN fraction < {1:.4f} sufficiently quickly. Try to lower your request with the -nspec option, or increase the maximum allowed NaN fraction with the -nanfrac option.'.format(nr_spec, nan_frac))
+      print('# ERROR: Cannot find {0:d} unique random spectra with NaN fraction < {1:.4f} sufficiently quickly.'.format(nr_spec, nan_frac))
+      print('#        Skipped {0:d} non-unique spectra because of NaN fraction > {1:.4f}. Extracted {2:d} unique spectra.'.format(skipped, nan_frac, ii))
+      print('#        Try to lower your request with the -nspec option, or increase the maximum allowed NaN fraction with the -nanfrac option.')
       sys.exit()
     x0 = np.random.randint(0,high=cube.shape[2])
     y0 = np.random.randint(0,high=cube.shape[1])
@@ -564,8 +566,8 @@ def main():
 
   ax2.axhline(y=0, color='k', ls=':')
   if art_len > 0:
-    lab2_1 = '$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }$'
-    lab2_2 = '$\\Lambda\\left(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }\\right)$'
+    lab2_1 = '$+\\sqrt{\\mathcal{F}\\left( \\langle A_F\\rangle - Z \\right) }$'
+    lab2_2 = '$\\Lambda\\left(\\sqrt{\\mathcal{F}\\left( \\langle A_F\\rangle - Z \\right) }\\right)$'
   else:
     lab2_1 = '$+\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$'
     lab2_2 = '$\\Lambda\\left(\\sqrt{\\mathcal{F}\\langle A_F\\rangle }\\right)$'
@@ -581,8 +583,8 @@ def main():
 
   ax3.axhline(y=0, color='k', ls=':')
   if art_len > 0:
-    lab3_1 = '$\\mathcal{F}^{-1}\\Lambda\\left(\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }\\right)$'
-    lab3_2 = '$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle - Z }$'
+    lab3_1 = '$\\mathcal{F}^{-1}\\Lambda\\left(\\sqrt{\\mathcal{F}\\left( \\langle A_F\\rangle - Z \\right) }\\right)$'
+    lab3_2 = '$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\left( \\langle A_F\\rangle - Z \\right) }$'
   else:
     lab3_1 = '$\\mathcal{F}^{-1}\\Lambda\\left(\\sqrt{\\mathcal{F}\\langle A_F\\rangle }\\right)$'
     lab3_2 = '$\\mathcal{F}^{-1}\\sqrt{\\mathcal{F}\\langle A_F\\rangle }$'
@@ -603,7 +605,7 @@ def main():
   ax4.plot(np.arange(nr_chan//2), rec_area, 'k-', ds='steps-post', alpha=0.3, lw=3)
   ax4.plot(np.arange(nr_chan//2-ii_area,nr_chan//2), rec_area[-ii_area:], 'k-', ds='steps-post', alpha=1, lw=3)
   ax4.plot([nr_chan//2-ii_area, nr_chan//2-ii_area], [0.9 * rec_area_med, 1.1 * rec_area_med], 'k:')
-  ax4.axhline(y=rec_area_med, color='k', ls=':', label='$\\int{{ K / K_\\mathrm{{max}}}} \\to$ {0:.2f} channels'.format(rec_area_med))
+  ax4.axhline(y=rec_area_med, color='k', ls=':', label='$\\int{{K}} \\to$ {0:.2f} channels'.format(rec_area_med))
   ax4.legend(fontsize=legend_font_size)
   ax4.set_xlim(0,nr_chan//2)
   ax4.set_ylim(0,1.1*rec_area.max())
