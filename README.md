@@ -33,9 +33,6 @@ optional arguments:
                         Number of unique random spectra to be extracted from the input FITS cube. Default = 1000.
   -nchan NR_CHAN, --nr-chan NR_CHAN
                         Number of channels per spectrum. Default = 0 = all channels.
-  -nanfrac NAN_FRACTION, --nan-fraction NAN_FRACTION
-                        Maximum allowed NaN fraction (0 to 1) for each spectrum extracted from the input FITS. Spectra with a NaN fraction above this value are excluded and do not count towards reaching the
-                        requested number of spectra. Channels with real signal (based on the mask given with the -m option) are considered as NaN. Default = 0 = no NaN allowed.
   -o OUTPUT, --output OUTPUT
                         Name of the output plot including the extension. Default = None = system interactive backend.
   -sinc SINC_KERNEL [SINC_KERNEL ...], --sinc-kernel SINC_KERNEL [SINC_KERNEL ...]
