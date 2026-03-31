@@ -20,12 +20,6 @@ def create_parser():
                  " cube. Default = 1000.")
   p.add_argument("-nchan", "--nr-chan", type=int, default=0,
                  help="Number of channels per spectrum. Default = 0 = all channels.")
-  p.add_argument("-nanfrac", "--nan-fraction", type=float, default=0,
-                 help="Maximum allowed NaN fraction (0 to 1) for each spectrum extracted"
-                 " from the input FITS. Spectra with a NaN fraction above this value are"
-                 " excluded and do not count towards reaching the requested number of"
-                 " spectra. Channels with real signal (based on the mask given with the -m"
-                 " option) are considered as NaN. Default = 0 = no NaN allowed.")
   p.add_argument("-o", "--output", type=str, default=None,
                  help="Name of the output plot including the extension. Default = None"
                  " = system interactive backend.")
@@ -298,7 +292,6 @@ def main():
   maskf      = args.mask
   nr_chan    = args.nr_chan
   nr_spec    = args.nr_spec
-  nan_frac   = args.nan_fraction
   output     = args.output
   sinc       = args.sinc_kernel
   gauss      = args.gauss_kernel
@@ -318,11 +311,6 @@ def main():
   plt.rcParams['text.usetex']= True if shutil.which('latex') else False
   plt.rcParams.update({'font.size': 16})
   legend_font_size = 10
-
-  # Check that the settings are valid
-  if nan_frac < 0 or nan_frac > 1:
-    print('# ERROR: invalid value for -nanfrac/--nan-fraction: {0:.4f}. Only floats between 0 and 1 are allowed.'.format(nan_frac))
-    sys.exit()
 
   if noise_f < -1 or noise_f > 100:
     print('# ERROR: invalid value for -floor/--noise-floor: {0:d}. Only integers between -1 and +100 are allowed.'.format(noise_f))
@@ -345,7 +333,7 @@ def main():
     print('# ERROR: can only use -force/--force-sign-change together with -notrack/--no-track-sign-change.'.format(noise_f))
     sys.exit()
 
-  # Load the input FITS cube and, if requested, the FITS detection mask
+  # Load the input FITS cube
   print('# Loading FITS cube {0:s}'.format(cubef))
   with fits.open(cubef) as f:
     cube = f[0].data
@@ -358,6 +346,8 @@ def main():
   elif len(cube.shape) == 2:
     print('# ERROR: The input .FITS is not a cube. It only has 2 axes. Cannot proceed.')
     sys.exit()
+
+  # If requested, load the FITS detection mask
   if maskf:
     print('# Loading FITS detection mask {0:s} as boolean array'.format(maskf))
     with fits.open(maskf) as f:
@@ -377,6 +367,9 @@ def main():
   else:
     print('# WARNING: No FITS detection mask given. Will assume the cube is pure noise.')
     msk = np.full(cube.shape, False, dtype=bool)
+
+  # Set mask voxels = True if they are NaN in the cube (used later to skip spectra with detected and/or NaN channels)
+  msk += np.isnan(cube)
 
   # Initialise a few things
   if nr_spec <= cube.shape[1]*cube.shape[2]:
@@ -399,29 +392,30 @@ def main():
 
   # Extract random spectra from cube, with some constraints:
   # - exclude spectra already extracted
-  # - exclude spectra included in the mask
-  # - exclude spectra with NaN's
+  # - exclude spectra with detected channels according to the mask
+  # - exclude spectra with NaN channels
   print('# Extracting {0:d} unique random spectra F and calculating autocorrelation A_F.'.format(nr_spec))
   ii, skipped = 0, 0
   while ii < nr_spec:
     if skipped > 10 * nr_spec:
-      print('# ERROR: Cannot find {0:d} unique random spectra with NaN fraction < {1:.4f} sufficiently quickly.'.format(nr_spec, nan_frac))
-      print('#        Skipped {0:d} non-unique spectra because of NaN fraction > {1:.4f}. Extracted {2:d} unique spectra.'.format(skipped, nan_frac, ii))
-      print('#        Try to lower your request with the -nspec option, or increase the maximum allowed NaN fraction with the -nanfrac option.')
+      print('# ERROR: Cannot find {0:d} valid unique random spectra sufficiently quickly.'.format(nr_spec))
+      print('#        Skipped {0:d} non-unique spectra because of detected and/or NaN channels. Extracted {1:d} unique spectra.'.format(skipped, ii))
+      print('#        Try to lower your request with the -nspec option.')
       sys.exit()
     x0 = np.random.randint(0,high=cube.shape[2])
     y0 = np.random.randint(0,high=cube.shape[1])
     z0 = np.random.randint(0,high=cube.shape[0]-nr_chan+1)
     spec = cube[z0:z0+nr_chan,y0,x0]
-    # only take spectra with a NaN fraction below the threshold set by -nanfrac
-    if not (msk[z0:z0+nr_chan,y0,x0] != 0 + np.isnan(spec)).sum() > nan_frac * nr_chan:
+    # only take spectra with no NaNs and no detected channels
+    # (note that NaN voxels had been set to True in the mask, so the selection of detected and/or NaN channels can be done on the mask alone)
+    if not (msk[z0:z0+nr_chan,y0,x0] != 0).sum():
       spec_autocorr_all[ii] = autocorrelate_fft(spec) # peak = 1 at centre of array
       msk[z0:z0+nr_chan,y0,x0] = True
       ii += 1
     else:
       skipped += 1
   if skipped:
-    print('# Skipped {0:d} non-unique spectra because of NaN fraction > {1:.4f}. Extracted {2:d} unique spectra as requested.'.format(skipped, nan_frac, nr_spec))
+    print('# Skipped {0:d} non-unique spectra because of detected and/or NaN channels. Extracted {1:d} unique spectra as requested.'.format(skipped, nr_spec))
   print('# Calculating mean autocorrelation <A_F>.')
   spec_autocorr_mean = np.nanmean(spec_autocorr_all, axis=0)
   spec_autocorr_std  = np.nanstd(spec_autocorr_all, axis=0)
